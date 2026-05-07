@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.5.14] - 2026-05-06
+## [0.5.12] - 2026-05-07
 
 ### Fixed
 - Read Cursor auth tokens directly from `state.vscdb` without requiring a `sqlite3` CLI on PATH, native SQLite bindings, or platform-specific binaries.
