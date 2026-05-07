@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.15] - 2026-05-07
+
+### Added
+- Dashboard sections (Your Usage, Usage by Model, Events) are now collapsible. Section state is persisted across reloads.
+- Dark mode support for the dashboard's filter dropdowns (Usage, Metric, sort selectors) so they match the rest of the themed UI in dark VS Code themes.
+
+### Changed
+- Replaced the unicode collapse glyphs with a 16×16 SVG chevron that uses `currentColor` and rotates 90° when a section is collapsed. Toggle hitbox enlarged from 14×14 to 20×20 for easier clicking.
+
 ## [0.5.12] - 2026-05-07
 
 ### Fixed

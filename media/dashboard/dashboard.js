@@ -77,8 +77,6 @@
     sectionEl.classList.toggle("collapsed", !isOpen);
     bodyEl.classList.toggle("hidden", !isOpen);
     toggleEl.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    const arrowEl = toggleEl.querySelector(".section-arrow");
-    if (arrowEl) arrowEl.textContent = isOpen ? "▾" : "▸";
   }
 
   function applySectionState() {

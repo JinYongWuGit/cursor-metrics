@@ -146,7 +146,7 @@ export class DashboardPanel {
           aria-controls="section-body-usage"
           aria-label="Toggle Your Usage section"
         >
-          <span class="section-arrow" aria-hidden="true">▾</span>
+          <svg class="section-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div>
           <h2>Your Usage</h2>
@@ -189,7 +189,7 @@ export class DashboardPanel {
           aria-controls="section-body-breakdown"
           aria-label="Toggle Usage by Model section"
         >
-          <span class="section-arrow" aria-hidden="true">▾</span>
+          <svg class="section-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <h2>Usage by Model</h2>
       </div>
@@ -223,7 +223,7 @@ export class DashboardPanel {
           aria-controls="section-body-events"
           aria-label="Toggle Events section"
         >
-          <span class="section-arrow" aria-hidden="true">▾</span>
+          <svg class="section-arrow" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <h2>Events</h2>
       </div>

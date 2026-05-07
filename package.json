@@ -1,6 +1,6 @@
 {
   "name": "cursor-usage",
-  "version": "0.5.12",
+  "version": "0.5.15",
   "repository": {
     "type": "git",
     "url": "https://github.com/wrick17/cursor-metrics"
