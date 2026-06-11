@@ -78,7 +78,7 @@ function buildSummaryColumns(
     return [
       includedColumn,
       {
-        label: "On-demand",
+        label: onDemand.label ?? "On-demand",
         value: formatOnDemandValue(onDemand),
         footer: "<sub>Unlimited</sub>",
       },
@@ -90,9 +90,13 @@ function buildSummaryColumns(
   return [
     includedColumn,
     {
-      label: "On-demand",
+      label: onDemand.label ?? "On-demand",
       value: formatOnDemandValue(onDemand),
-      footer: spendRatio === null ? "<sub>Spend unavailable</sub>" : renderProgressBar.html(spendRatio),
+      footer: onDemand.footer
+        ? `<sub>${onDemand.footer}</sub>`
+        : spendRatio === null
+          ? "<sub>Spend unavailable</sub>"
+          : renderProgressBar.html(spendRatio),
     },
   ];
 }

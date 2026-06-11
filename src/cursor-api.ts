@@ -8,9 +8,33 @@ export type UsagePayload = {
     state: "disabled" | "limited" | "unlimited";
     spendDollars: number;
     limitDollars: number | null;
+    label?: string;
+    footer?: string;
   };
   resetsAt: string | null;
 };
+
+function parseUsageSummaryMonthlyUsage(summaryRaw: unknown): {
+  usedDollars: number;
+  limitDollars: number;
+  resetsAt: string | null;
+  enabled: boolean;
+} | null {
+  const summary = asRecord(summaryRaw);
+  if (!summary) return null;
+
+  const individualUsage = asRecord(summary.individualUsage);
+  const overall = individualUsage ? asRecord(individualUsage.overall) : null;
+  if (!overall) return null;
+
+  const usedCents = toNumber(overall.used);
+  const limitCents = toNumber(overall.limit);
+  if (usedCents === null || limitCents === null) return null;
+
+  const enabled = Boolean(overall.enabled);
+  const resetsAt = typeof summary.billingCycleEnd === "string" ? summary.billingCycleEnd : null;
+  return { usedDollars: usedCents / 100, limitDollars: limitCents / 100, resetsAt, enabled };
+}
 
 export type UsageEvent = {
   timestamp: number;
@@ -587,13 +611,14 @@ async function fetchTeamUsage(
   headers: ReturnType<typeof cursorHeaders>,
   setup: SetupCache,
 ): Promise<UsagePayload | null> {
-  const [teamSpendRes, usageRes] = await Promise.all([
+  const [teamSpendRes, usageRes, usageSummaryRes] = await Promise.all([
     fetch("https://cursor.com/api/dashboard/get-team-spend", withTimeout({
       method: "POST",
       headers,
       body: JSON.stringify({ teamId: setup.teamId }),
     })),
     fetch(`https://cursor.com/api/usage?user=${auth.userId}`, withTimeout({ headers })),
+    fetch(`https://cursor.com/api/usage-summary?teamId=${setup.teamId}`, withTimeout({ headers })),
   ]);
 
   if (!teamSpendRes.ok) {
@@ -654,17 +679,32 @@ async function fetchTeamUsage(
   const limitDollars = onDemandState === "limited" ? hardLimit : null;
   log(`On-demand state: ${onDemandState}`);
 
+  let monthlyUsage: ReturnType<typeof parseUsageSummaryMonthlyUsage> | null = null;
+  if (usageSummaryRes.ok) {
+    const summaryJson = await usageSummaryRes.json();
+    monthlyUsage = parseUsageSummaryMonthlyUsage(summaryJson);
+    if (monthlyUsage) {
+      log(`Usage summary monthly: $${monthlyUsage.usedDollars.toFixed(2)} / $${monthlyUsage.limitDollars.toFixed(2)}`);
+    } else {
+      log("Usage summary monthly: could not parse");
+    }
+  } else {
+    log(`usage-summary (team) failed: ${usageSummaryRes.status}`);
+  }
+
   const result: UsagePayload = {
     includedRequests: {
       used,
       limit,
     },
     onDemand: {
-      state: onDemandState,
-      spendDollars,
-      limitDollars,
+      state: monthlyUsage && monthlyUsage.enabled ? "limited" : onDemandState,
+      spendDollars: monthlyUsage && monthlyUsage.enabled ? monthlyUsage.usedDollars : spendDollars,
+      limitDollars: monthlyUsage && monthlyUsage.enabled ? monthlyUsage.limitDollars : limitDollars,
+      label: monthlyUsage && monthlyUsage.enabled ? "Monthly usage" : undefined,
+      footer: monthlyUsage && monthlyUsage.enabled ? "Included total usage (dashboard)" : undefined,
     },
-    resetsAt,
+    resetsAt: monthlyUsage?.resetsAt ?? resetsAt,
   };
 
   const spendLimitLabel = result.onDemand.state === "unlimited"

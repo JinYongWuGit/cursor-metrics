@@ -215,6 +215,7 @@
 
     if (onDemand.state !== "disabled") {
       let valText, footerText, ratio;
+      const labelText = onDemand.label || "On-Demand Usage";
       if (onDemand.state === "unlimited") {
         valText = formatDollars(onDemand.spendDollars);
         footerText = "Unlimited";
@@ -222,11 +223,11 @@
       } else {
         valText = formatDollars(onDemand.spendDollars) + " / " + formatDollars(onDemand.limitDollars || 0);
         ratio = onDemand.limitDollars > 0 ? Math.min(1, onDemand.spendDollars / onDemand.limitDollars) : 0;
-        footerText = "Pay for extra usage beyond your plan limits";
+        footerText = onDemand.footer || "Pay for extra usage beyond your plan limits";
       }
       parts.push(
         '<div class="card">' +
-          '<div class="card-label">On-Demand Usage</div>' +
+          '<div class="card-label">' + labelText + "</div>" +
           '<div class="card-value">' + valText + "</div>" +
           '<div class="progress"><div style="width:' + Math.round(ratio * 100) + '%"></div></div>' +
           '<div class="card-footer">' + footerText + "</div>" +
