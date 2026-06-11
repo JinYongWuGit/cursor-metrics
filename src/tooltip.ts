@@ -29,6 +29,10 @@ function formatIncludedValue(includedRequests: IncludedRequestsUsage): string {
   return `${includedRequests.used} / ${includedRequests.limit}`;
 }
 
+function formatIncludedSpendValue(includedSpend: NonNullable<UsagePayload["includedSpend"]>): string {
+  return `$${includedSpend.includedDollars.toFixed(2)} / $${includedSpend.totalDollars.toFixed(2)}`;
+}
+
 function formatOnDemandValue(onDemand: OnDemandUsage): string {
   if (onDemand.state === "unlimited") {
     return `$${onDemand.spendDollars.toFixed(2)}`;
@@ -102,10 +106,25 @@ function buildSummaryColumns(
 }
 
 export function buildUsageOverviewMarkdown(
-  data: Pick<UsagePayload, "includedRequests" | "onDemand">,
+  data: Pick<UsagePayload, "includedRequests" | "onDemand" | "includedSpend">,
   renderProgressBar: ProgressBarRenderer,
 ): string {
-  const { includedRequests, onDemand } = data;
+  const { includedRequests, onDemand, includedSpend } = data;
+  if (includedSpend) {
+    const ratio = includedSpend.totalDollars > 0 ? includedSpend.includedDollars / includedSpend.totalDollars : 0;
+    const includedColumn: SummaryColumn = {
+      label: "Included spend",
+      value: formatIncludedSpendValue(includedSpend),
+      footer: renderProgressBar.html(ratio),
+    };
+    const rightColumn: SummaryColumn = {
+      label: onDemand.label ?? "Monthly usage",
+      value: formatOnDemandValue(onDemand),
+      footer: onDemand.footer ? `<sub>${onDemand.footer}</sub>` : "<sub></sub>",
+    };
+    return buildSummaryTable([includedColumn, rightColumn], renderProgressBar);
+  }
+
   return buildSummaryTable(buildSummaryColumns(includedRequests, onDemand, renderProgressBar), renderProgressBar);
 }
 

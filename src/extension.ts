@@ -19,6 +19,7 @@ import {
   aggregateByModel,
   filterZeroTokenModels,
   formatDollarsFromCents,
+  getDurationCutoff,
   type ModelBreakdownSortBy,
   type SortOrder,
   type UsageDuration,
@@ -221,18 +222,24 @@ function updateStatusBar(data: UsagePayload) {
 
   const premiumExhausted = includedRequests.used >= includedRequests.limit;
   const onDemandVisible = isOnDemandVisible(onDemand);
+  const includedSpend = data.includedSpend;
 
   if (minimalMode) {
     if (premiumExhausted && onDemandVisible) {
       statusBarItem.text = `$(pulse) ${formatOnDemandStatus(onDemand)}`;
+    } else if (includedRequests.limit === 0 && includedSpend) {
+      statusBarItem.text = `$(pulse) $${includedSpend.includedDollars.toFixed(2)}/$${includedSpend.totalDollars.toFixed(2)}`;
     } else {
       statusBarItem.text = `$(pulse) ${includedRequests.used}/${includedRequests.limit}`;
     }
   } else {
     const includedText = `${includedRequests.used}/${includedRequests.limit}`;
+    const includedSpendText = includedSpend
+      ? `$${includedSpend.includedDollars.toFixed(2)}/$${includedSpend.totalDollars.toFixed(2)}`
+      : null;
     statusBarItem.text = onDemandVisible
-      ? `$(pulse) ${includedText} | ${formatOnDemandStatus(onDemand)}`
-      : `$(pulse) ${includedText}`;
+      ? `$(pulse) ${includedRequests.limit === 0 && includedSpendText ? includedSpendText : includedText} | ${formatOnDemandStatus(onDemand)}`
+      : `$(pulse) ${includedRequests.limit === 0 && includedSpendText ? includedSpendText : includedText}`;
   }
 
   const tooltip = new vscode.MarkdownString();
@@ -245,7 +252,7 @@ function updateStatusBar(data: UsagePayload) {
   const barW = 150;
   let md = `### $(pulse) Cursor Usage\n\n`;
   md += buildUsageOverviewMarkdown(
-    { includedRequests, onDemand },
+    { includedRequests, onDemand, includedSpend: data.includedSpend },
     {
       markdown: (ratio) => progressBarMarkdown(ratio, barW),
       html: (ratio) => progressBarHtml(ratio, barW),
@@ -317,9 +324,33 @@ async function updateUsage() {
     }
 
     if (data) {
-      lastData = data;
+      const derived = (() => {
+        // Team accounts often return 0/0 from /api/usage. Derive included spend vs total spend from events + monthly usage.
+        if (!lastEvents || lastEvents.length === 0) return data;
+        const totalDollars = data.onDemand.spendDollars; // monthly usage from usage-summary in team mode
+        if (!Number.isFinite(totalDollars) || totalDollars <= 0) return data;
+
+        const cutoff = getDurationCutoff("billingCycle", data.resetsAt, Date.now());
+        let includedSpendCents = 0;
+        for (const e of lastEvents) {
+          if (e.timestamp < cutoff) continue;
+          if (e.kind === "Included") includedSpendCents += e.spendCents;
+        }
+        const includedDollars = includedSpendCents / 100;
+        if (!Number.isFinite(includedDollars) || includedDollars <= 0) return data;
+
+        return {
+          ...data,
+          includedSpend: {
+            includedDollars,
+            totalDollars,
+          },
+        };
+      })();
+
+      lastData = derived;
       lastError = null;
-      updateStatusBar(data);
+      updateStatusBar(derived);
     } else {
       lastError = "Could not fetch usage data";
       if (!lastData) {

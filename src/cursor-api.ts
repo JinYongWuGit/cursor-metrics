@@ -4,6 +4,7 @@ import { join } from "path";
 
 export type UsagePayload = {
   includedRequests: { used: number; limit: number };
+  includedSpend?: { includedDollars: number; totalDollars: number };
   onDemand: {
     state: "disabled" | "limited" | "unlimited";
     spendDollars: number;

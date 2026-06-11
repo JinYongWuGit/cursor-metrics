@@ -197,16 +197,19 @@
       ui.summaryCards.innerHTML = '<div class="card"><div class="card-label">No data yet</div></div>';
       return;
     }
-    const { includedRequests, onDemand } = state.data;
-    const reqRatio = includedRequests.limit > 0 ? Math.min(1, includedRequests.used / includedRequests.limit) : 0;
-    const reqPct = Math.round(reqRatio * 100);
+    const { includedRequests, onDemand, includedSpend } = state.data;
+    const hasSpend = includedSpend && includedSpend.totalDollars > 0;
+    const ratio = hasSpend
+      ? Math.min(1, includedSpend.includedDollars / includedSpend.totalDollars)
+      : (includedRequests.limit > 0 ? Math.min(1, includedRequests.used / includedRequests.limit) : 0);
+    const pct = Math.round(ratio * 100);
 
     const parts = [];
     parts.push(
       '<div class="card">' +
-        '<div class="card-label">Included-Request Usage</div>' +
-        '<div class="card-value">' + includedRequests.used + " / " + includedRequests.limit + "</div>" +
-        '<div class="progress"><div style="width:' + (reqPct) + '%"></div></div>' +
+        '<div class="card-label">' + (hasSpend ? "Included spend" : "Included-Request Usage") + "</div>" +
+        '<div class="card-value">' + (hasSpend ? (formatDollars(includedSpend.includedDollars) + " / " + formatDollars(includedSpend.totalDollars)) : (includedRequests.used + " / " + includedRequests.limit)) + "</div>" +
+        '<div class="progress"><div style="width:' + (pct) + '%"></div></div>' +
         '<div class="card-footer">' + formatResetCountdown(state.resetsAt) + "</div>" +
       "</div>"
     );
