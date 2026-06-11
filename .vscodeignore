@@ -12,3 +12,11 @@ bun.lock
 build/
 scripts/
 node-compile-cache/
+.vs/
+.vscode/
+.playwright-mcp/
+package-lock.json
+full176.txt
+req171*.txt
+req176-body.json
+usage-summary-team.json
