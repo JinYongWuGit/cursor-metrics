@@ -97,13 +97,14 @@ export function aggregateByModel(
 ): ModelAggregate[] {
   const cutoff = getDurationCutoff(duration, resetAtIso, now);
   const spendByCategory = aggregateSpendByCategory(spendRows, duration, resetAtIso, now);
-  const modelMap = new Map<string, { totalTokens: number; requests: number }>();
+  const modelMap = new Map<string, { totalTokens: number; requests: number; spendCents: number }>();
 
   for (const event of events) {
     if (event.timestamp < cutoff) continue;
-    const entry = modelMap.get(event.model) ?? { totalTokens: 0, requests: 0 };
+    const entry = modelMap.get(event.model) ?? { totalTokens: 0, requests: 0, spendCents: 0 };
     entry.totalTokens += event.totalTokens;
     entry.requests += event.requests;
+    entry.spendCents += event.spendCents;
     modelMap.set(event.model, entry);
   }
 
@@ -111,7 +112,8 @@ export function aggregateByModel(
     model,
     totalTokens: totals.totalTokens,
     requests: totals.requests,
-    spendCents: spendByCategory.get(model) ?? 0,
+    // Prefer per-event spend (matches dashboard "spend" attribution). Fall back to daily spend rows.
+    spendCents: totals.spendCents > 0 ? totals.spendCents : (spendByCategory.get(model) ?? 0),
   }));
   return sortModelAggregates(rows, sortBy, sortOrder);
 }

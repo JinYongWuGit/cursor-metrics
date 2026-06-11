@@ -158,7 +158,6 @@
   }
 
   function eventSpendDollars(event) {
-    if (state && state.quotaAwareEventDisplay && !isOnDemandEvent(event)) return 0;
     return (event.spendCents || 0) / 100;
   }
 
@@ -168,7 +167,6 @@
   }
 
   function eventSpendText(event) {
-    if (state && state.quotaAwareEventDisplay && !isOnDemandEvent(event)) return "—";
     return formatDollars(eventSpendDollars(event));
   }
 
@@ -586,6 +584,17 @@
     if (!state) return [];
     const cutoff = getDurationCutoff(local.range, state.resetsAt, state.generatedAt);
     const map = new Map();
+    const spendByModel = new Map();
+    if (Array.isArray(state.dailySpend)) {
+      for (const row of state.dailySpend) {
+        const day = toMillis(row.day);
+        if (!Number.isFinite(day) || day < cutoff) continue;
+        const model = row.category || "unknown";
+        const cents = Number(row.spendCents || 0);
+        if (!Number.isFinite(cents)) continue;
+        spendByModel.set(model, (spendByModel.get(model) || 0) + cents);
+      }
+    }
     for (const e of state.events) {
       const ts = toMillis(e.timestamp);
       if (!Number.isFinite(ts) || ts < cutoff) continue;
@@ -593,7 +602,9 @@
       const entry = map.get(e.model) || { model: e.model, requests: 0, totalTokens: 0, spendCents: 0 };
       entry.requests += e.requests || 0;
       entry.totalTokens += e.totalTokens || 0;
-      entry.spendCents += Math.round(eventSpendDollars(e) * 100);
+      // Spend in the model breakdown should match Cursor's dashboard "Cost" attribution
+      // (includes included usage), which we source from dailySpend rows.
+      entry.spendCents = spendByModel.get(e.model) || 0;
       map.set(e.model, entry);
     }
     const rows = Array.from(map.values());

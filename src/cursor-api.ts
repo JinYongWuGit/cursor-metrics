@@ -53,6 +53,13 @@ export type DailySpendRow = {
   totalTokens: number;
 };
 
+function normalizeModelName(model: string): string {
+  // Cursor dashboard CSV/analytics uses "auto" where the extension UI expects "default".
+  // Normalize so spend-by-model and events align.
+  if (model === "auto") return "default";
+  return model;
+}
+
 type Logger = (msg: string) => void;
 
 let log: Logger = () => {};
@@ -754,11 +761,13 @@ function parseDailySpendRow(row: unknown): DailySpendRow | null {
   if (!data) return null;
 
   const day = toNumber(data.day);
-  const category = typeof data.category === "string" ? data.category : null;
+  const categoryRaw = typeof data.category === "string" ? data.category : null;
+  const category = categoryRaw ? normalizeModelName(categoryRaw) : null;
   const spendCents = toNumber(data.spendCents);
-  const totalTokens = toNumber(data.totalTokens);
+  // spendType=3 (per-model spend) doesn't always include token totals.
+  const totalTokens = toNumber(data.totalTokens) ?? 0;
 
-  if (day === null || !category || spendCents === null || totalTokens === null) {
+  if (day === null || !category || spendCents === null) {
     return null;
   }
 
@@ -851,7 +860,9 @@ export async function fetchDailySpendByCategory(): Promise<DailySpendRow[]> {
       periodStartMs,
       periodEndMs,
       groupBy: 1,
-      spendType: 1,
+      // Match the Cursor dashboard usage page spendType.
+      // spendType=3 returns per-model spend that powers the Spend columns.
+      spendType: 3,
     }),
   }));
 
@@ -867,7 +878,9 @@ export async function fetchDailySpendByCategory(): Promise<DailySpendRow[]> {
     const parsed = parseDailySpendRow(row);
     if (parsed) parsedRows.push(parsed);
   }
-  log(`Fetched ${parsedRows.length} daily spend rows`);
+  const preview = parsedRows.slice(0, 5).map((r) => `${r.category}:${r.spendCents}`).join(", ");
+  const totalSpendCents = parsedRows.reduce((sum, r) => sum + (r.spendCents ?? 0), 0);
+  log(`Fetched ${parsedRows.length} daily spend rows (total=$${(totalSpendCents / 100).toFixed(2)}; first=${preview || "(none)"})`);
   return parsedRows;
 }
 
@@ -932,12 +945,22 @@ export async function fetchUsageEvents(): Promise<UsageEvent[]> {
         (toNumber(tok.cacheWriteTokens) ?? 0) +
         (toNumber(tok.cacheReadTokens) ?? 0);
 
-      const requests = toNumber(e.requestsCosts) ?? toNumber(e.numRequests) ?? 1;
-      const spendCents = toNumber(e.chargedCents) ?? 0;
+      const requests = toNumber(e.numRequests) ?? 1;
+      // For the Events table, we want a per-event "cost" number even for included events.
+      // In the payload this shows up as floating-point cents in a few places; prefer tokenUsage.totalCents
+      // (when present), otherwise fall back to chargedCents and requestsCosts.
+      const totalCents = toNumber(tok.totalCents);
+      // These fields overlap; summing them double-counts. Prefer a single best source.
+      const spendCents = Math.round(
+        toNumber(e.chargedCents)
+        ?? totalCents
+        ?? toNumber(e.requestsCosts)
+        ?? 0,
+      );
 
       allEvents.push({
         timestamp: toNumber(e.timestamp) ?? 0,
-        model: typeof e.model === "string" ? e.model : "unknown",
+        model: typeof e.model === "string" ? normalizeModelName(e.model) : "unknown",
         kind: parseEventKind(typeof e.kind === "string" ? e.kind : ""),
         totalTokens,
         requests,
@@ -956,4 +979,51 @@ export async function fetchUsageEvents(): Promise<UsageEvent[]> {
 
   log(`Fetched ${allEvents.length} usage events across ${Math.min(page, MAX_USAGE_EVENT_PAGES)} page(s)`);
   return allEvents;
+}
+
+type CsvSpendRow = { model: string; spendCents: number };
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (ch === "\"") {
+      inQ = !inQ;
+      continue;
+    }
+    if (ch === "," && !inQ) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function extractCsvSpendByModel(csvText: string, maxRows = 5000): CsvSpendRow[] {
+  const lines = csvText.split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const header = lines[0]!.split(",");
+  const modelIdx = header.findIndex((h) => h.trim() === "Model");
+  const costIdx = header.findIndex((h) => h.trim() === "Cost");
+  if (modelIdx < 0 || costIdx < 0) return [];
+
+  const agg = new Map<string, number>();
+  for (const line of lines.slice(1, 1 + maxRows)) {
+    const cols = parseCsvLine(line);
+    const model = cols[modelIdx] || "unknown";
+    const costDollars = Number(cols[costIdx] || 0);
+    if (!Number.isFinite(costDollars)) continue;
+    const prev = agg.get(model) ?? 0;
+    agg.set(model, prev + costDollars);
+  }
+
+  return [...agg.entries()].map(([model, dollars]) => ({
+    model,
+    spendCents: Math.round(dollars * 100),
+  }));
 }
