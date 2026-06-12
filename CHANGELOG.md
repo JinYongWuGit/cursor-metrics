@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased] - 2026-06-12
+## [0.6.0] - 2026-06-12
 
 ### Added
 - Fetch monthly usage for team accounts so dashboard totals match account summaries.
