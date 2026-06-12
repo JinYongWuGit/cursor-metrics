@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "cursor-usage",
+      "name": "cursor-usage-team",
       "devDependencies": {
         "@types/node": "^25.3.0",
         "@types/vscode": "^1.85.0",

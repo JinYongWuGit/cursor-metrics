@@ -16,9 +16,9 @@ describe("package configuration", () => {
   });
 
   it("keeps the display name while using a unique VS Marketplace package id", () => {
-    expect(packageJson.displayName).toBe("Cursor Usage");
-    expect(packageJson.scripts["package:vsm"]).toContain("cursor-usage-auto");
-    expect(packageJson.scripts["publish:vsm"]).toContain("cursor-usage-auto");
+    expect(packageJson.displayName).toBe("Cursor Team Usage");
+    expect(packageJson.scripts["package:vsm"]).toContain("cursor-usage-team-auto");
+    expect(packageJson.scripts["publish:vsm"]).toContain("cursor-usage-team-auto");
   });
 
   it("exposes model table sorting settings with token-desc defaults", () => {

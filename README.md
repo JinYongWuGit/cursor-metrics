@@ -1,6 +1,8 @@
 # Cursor Usage
 
-See Cursor usage in your status bar: included requests and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
+See your **individual** Cursor usage within a **Team subscription** in your status bar: included requests and on-demand spend, live while you work. Click the status bar item to open a full dashboard inside your editor.
+
+Note: this extension targets Cursor **Team** billing/usage (individual usage within the team plan). If you're on an **individual** subscription, the underlying usage endpoints may not match what this extension expects.
 
 ![Cursor Usage extension tooltip](media/extensions-tooltip.png)
 

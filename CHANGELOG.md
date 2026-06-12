@@ -110,7 +110,7 @@ All notable changes to this project are documented in this file.
 ## [0.4.8] - 2026-04-20
 
 ### Changed
-- Added separate Open VSX and Visual Studio Marketplace packaging flows, including a Marketplace-specific package id of `cursor-usage-auto`.
+- Added separate Open VSX and Visual Studio Marketplace packaging flows, including a Marketplace-specific package id of `cursor-usage-team-auto`.
 - Documented the `JinYongWuGit` publisher setup, token requirements, and release commands for both marketplaces.
 - Excluded generated build assets and helper scripts from packaged VSIX artifacts and local Bun test discovery.
 

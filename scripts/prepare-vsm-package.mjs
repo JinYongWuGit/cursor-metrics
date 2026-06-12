@@ -13,7 +13,7 @@ const packageJson = JSON.parse(
 
 const vsmPackageJson = {
   ...packageJson,
-  name: "cursor-usage-auto",
+  name: "cursor-usage-team-auto",
 };
 
 const filesToCopy = [
