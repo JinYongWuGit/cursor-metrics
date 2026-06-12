@@ -1,9 +1,9 @@
 {
   "name": "cursor-usage",
-  "version": "0.5.18",
+  "version": "0.6.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wrick17/cursor-metrics"
+    "url": "https://github.com/JinYongWuGit/cursor-metrics"
   },
   "main": "./dist/extension.js",
   "devDependencies": {
@@ -133,7 +133,7 @@
   },
   "icon": "icon.png",
   "license": "MIT",
-  "publisher": "wrick17",
+  "publisher": "JinYongWuGit",
   "scripts": {
     "build": "node esbuild.config.mjs --production",
     "watch": "node esbuild.config.mjs --watch",
