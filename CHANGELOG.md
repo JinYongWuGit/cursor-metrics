@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased] - 2026-06-12
+
+### Added
+- Fetch monthly usage for team accounts so dashboard totals match account summaries.
+- Add a Usage & Privacy page documenting how the extension collects usage data and how tokens are handled.
+
+### Changed
+- Bump extension to 0.6.0 and update publisher and package names to support team subscriptions and marketplace distribution.
+
+### Fixed
+- Correct spend calculations for team usage and model breakdowns.
+
+### Chore
+- Exclude local development artifacts from packaged builds to prevent packaging failures.
+
+
 ## [0.5.18] - 2026-05-07
 
 ### Added
@@ -17,7 +33,7 @@ All notable changes to this project are documented in this file.
 - Dark mode support for the dashboard's filter dropdowns (Usage, Metric, sort selectors) so they match the rest of the themed UI in dark VS Code themes.
 
 ### Changed
-- Replaced the unicode collapse glyphs with a 16×16 SVG chevron that uses `currentColor` and rotates 90° when a section is collapsed. Toggle hitbox enlarged from 14×14 to 20×20 for easier clicking.
+- Replaced the unicode collapse glyphs with a 16×16 SVG chevron that uses `currentColor` and rotates 90° when a section is collapsed. Toggle hitbox enlarged from 14×14 to 20×20 for easier clic[...]
 
 ## [0.5.12] - 2026-05-07
 
@@ -32,8 +48,7 @@ All notable changes to this project are documented in this file.
 ## [0.5.11] - 2026-04-29
 
 ### Fixed
-- Dashboard chart axis labels, gridlines, and legend text are now visible in light themes. VS Code webviews don't honor `prefers-color-scheme`, so light tokens are now applied via the `body.vscode-light` / `body.vscode-high-contrast-light` selectors that VS Code sets on the webview body.
-- Chart tooltip uses themed surface, border, and foreground tokens instead of hardcoded dark colors so it remains readable in light themes.
+- Dashboard chart axis labels, gridlines, and legend text are now visible in light themes. VS Code webviews don't honor `prefers-color-scheme`, so light tokens are now applied via the `body.vscode[...]
 
 ## [0.5.10] - 2026-04-29
 
@@ -43,8 +58,7 @@ All notable changes to this project are documented in this file.
 ## [0.5.7] - 2026-04-29
 
 ### Added
-- Dashboard now has a `Usage by Model` section between the chart and the events table, with sortable Model / Requests / Tokens / Spend columns. Each row reuses the chart's color tinting so it visually maps to the chart series.
-- Chart tooltip is now a real HTML table with a header row, a colored model dot, and a per-row Spend column when viewing Tokens or Requests.
+- Dashboard now has a `Usage by Model` section between the chart and the events table, with sortable Model / Requests / Tokens / Spend columns. Each row reuses the chart's color tinting so it visu[...]
 
 ### Changed
 - Constrained dashboard content to a 1000px max width for readability on wide monitors.
@@ -63,7 +77,7 @@ All notable changes to this project are documented in this file.
 ## [0.5.1] - 2026-04-29
 
 ### Fixed
-- VS Marketplace package now includes the `media/` directory so the dashboard webview's CSS, JavaScript, and bundled Chart.js load correctly. Previous 0.5.0 build shipped only `dist/` and `test/`, leaving the dashboard unstyled and non-interactive on VSCode.
+- VS Marketplace package now includes the `media/` directory so the dashboard webview's CSS, JavaScript, and bundled Chart.js load correctly. Previous 0.5.0 build shipped only `dist/` and `test/`,[...]
 
 ## [0.5.0] - 2026-04-29
 
