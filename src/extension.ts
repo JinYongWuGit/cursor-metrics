@@ -225,7 +225,9 @@ function updateStatusBar(data: UsagePayload) {
   const includedSpend = data.includedSpend;
 
   if (minimalMode) {
-    if (premiumExhausted && onDemandVisible) {
+    // Minimal mode shows one key metric. When on-demand spend is available, keep the spend/limit display.
+    // Otherwise fall back to requests usage (or included-spend ratio for team accounts with 0/0 requests).
+    if (onDemandVisible) {
       statusBarItem.text = `$(pulse) ${formatOnDemandStatus(onDemand)}`;
     } else if (includedRequests.limit === 0 && includedSpend) {
       statusBarItem.text = `$(pulse) $${includedSpend.includedDollars.toFixed(2)}/$${includedSpend.totalDollars.toFixed(2)}`;
@@ -233,13 +235,14 @@ function updateStatusBar(data: UsagePayload) {
       statusBarItem.text = `$(pulse) ${includedRequests.used}/${includedRequests.limit}`;
     }
   } else {
-    const includedText = `${includedRequests.used}/${includedRequests.limit}`;
-    const includedSpendText = includedSpend
-      ? `$${includedSpend.includedDollars.toFixed(2)}/$${includedSpend.totalDollars.toFixed(2)}`
-      : null;
-    statusBarItem.text = onDemandVisible
-      ? `$(pulse) ${includedRequests.limit === 0 && includedSpendText ? includedSpendText : includedText} | ${formatOnDemandStatus(onDemand)}`
-      : `$(pulse) ${includedRequests.limit === 0 && includedSpendText ? includedSpendText : includedText}`;
+    // Full mode previously showed "included | on-demand". Per request, drop the left segment and keep spend/limit.
+    if (onDemandVisible) {
+      statusBarItem.text = `$(pulse) ${formatOnDemandStatus(onDemand)}`;
+    } else if (includedRequests.limit === 0 && includedSpend) {
+      statusBarItem.text = `$(pulse) $${includedSpend.includedDollars.toFixed(2)}/$${includedSpend.totalDollars.toFixed(2)}`;
+    } else {
+      statusBarItem.text = `$(pulse) ${includedRequests.used}/${includedRequests.limit}`;
+    }
   }
 
   const tooltip = new vscode.MarkdownString();

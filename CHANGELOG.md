@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.2] - 2026-06-13
+
+### Changed
+- Status bar now removes the leading included-usage segment, leaving only the on-demand spend display (spend/limit).
+
 ## [0.6.0] - 2026-06-12
 
 ### Added

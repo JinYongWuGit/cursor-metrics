@@ -38,4 +38,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env
 /.vs
 /.vscode
+!/.vscode/
+!/.vscode/launch.json
+!/.vscode/tasks.json
 /.playwright-mcp
