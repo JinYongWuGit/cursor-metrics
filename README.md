@@ -10,7 +10,7 @@ Note: this extension targets Cursor **Team** billing/usage (individual usage wit
 
 ## What you get
 
-- Compact status bar display (for example: `500/500 | $114.78/$300`).
+- Compact status bar display (for example: `$102/$114.78 | $114.78/$300`).
 - Detailed hover tooltip with progress bars, reset countdown, and per-model usage.
 - Full dashboard tab with summary cards, a per-day stacked bar chart, a sortable Usage by Model table, and a per-event Events table with Export CSV.
 - Loading indicator while fresh usage data is being fetched.
@@ -28,6 +28,10 @@ Note: this extension targets Cursor **Team** billing/usage (individual usage wit
 - `cursorUsage.pollInterval` (default: `5`) - minimum refresh cooldown in minutes (`1`, `5`, `10`, `30`, `60`).
 - `cursorUsage.minimalMode` (default: `false`) - show only the active metric.
 - `cursorUsage.usageDuration` (default: `billingCycle`) - tooltip model-usage range: `1d`, `7d`, `30d`, or `billingCycle`.
+- `cursorUsage.modelBreakdownSortBy` (default: `tokens`) - sort column for the Usage by Model table (`model`, `requests`, `tokens`, `spend`).
+- `cursorUsage.modelBreakdownSortOrder` (default: `desc`) - sort direction for the Usage by Model table (`asc`, `desc`).
+- `cursorUsage.excludeZeroTokenModels` (default: `false`) - hide rows where token usage is zero.
+- `cursorUsage.quotaAwareEventDisplay` (default: `true`) - in the dashboard, show included usage as requests and on-demand usage as spend (instead of raw request/spend values for every event).
 
 ## Privacy and behavior
 
