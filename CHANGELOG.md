@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.3] - 2026-06-13
+
+### Fixed
+- Open VSX listing now renders README images again (package-time links are rewritten to stable HTTPS URLs).
+
 ## [0.6.2] - 2026-06-13
 
 ### Changed

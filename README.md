@@ -10,7 +10,7 @@ Note: this extension targets Cursor **Team** billing/usage (individual usage wit
 
 ## What you get
 
-- Compact status bar display (for example: `$102/$114.78 | $114.78/$300`).
+- Compact status bar display (for example: `$114.78/$300`).
 - Detailed hover tooltip with progress bars, reset countdown, and per-model usage.
 - Full dashboard tab with summary cards, a per-day stacked bar chart, a sortable Usage by Model table, and a per-event Events table with Export CSV.
 - Loading indicator while fresh usage data is being fetched.

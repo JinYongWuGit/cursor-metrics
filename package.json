@@ -1,6 +1,6 @@
 {
   "name": "cursor-usage-team",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/JinYongWuGit/cursor-metrics"
@@ -137,11 +137,11 @@
   "scripts": {
     "build": "node esbuild.config.mjs --production",
     "watch": "node esbuild.config.mjs --watch",
-    "package": "bun run build && mkdir -p build && VERSION=$(node -p \"require('./package.json').version\") && NAME=$(node -p \"require('./package.json').name\") && bunx @vscode/vsce package --no-rewrite-relative-links --out \"build/${NAME}-${VERSION}.vsix\"",
-    "package:vsm": "bun run build && node scripts/prepare-vsm-package.mjs && VERSION=$(node -p \"require('./package.json').version\") && cd \"build/vsm-package\" && bunx @vscode/vsce package --no-rewrite-relative-links --out \"../cursor-usage-team-auto-${VERSION}.vsix\"",
-    "publish:ovsx": "VERSION=$(node -p \"require('./package.json').version\") && NAME=$(node -p \"require('./package.json').name\") && bunx ovsx publish \"build/${NAME}-${VERSION}.vsix\" -p \"$OPEN_VSX_TOKEN\"",
+    "package:ovsx": "node scripts/package-ovsx.mjs",
+    "publish:ovsx": "node scripts/publish-ovsx.mjs",
+    "package:vsm": "bun run build && node scripts/prepare-vsm-package.mjs && VERSION=$(node -p \"require('./package.json').version\") && cd \"build/vsm-package\" && bunx @vscode/vsce package --out \"../cursor-usage-team-auto-${VERSION}.vsix\"",
     "publish:vsm": "bun run package:vsm && VERSION=$(node -p \"require('./package.json').version\") && bunx @vscode/vsce publish --packagePath \"build/cursor-usage-team-auto-${VERSION}.vsix\" -p \"$VSCE_PAT\"",
-    "publish:all": "bun run package && bun run publish:ovsx && bun run publish:vsm",
+    "publish:all": "node scripts/package-ovsx.mjs && node scripts/publish-ovsx.mjs && bun run publish:vsm",
     "release": "bun run publish:all"
   }
 }
