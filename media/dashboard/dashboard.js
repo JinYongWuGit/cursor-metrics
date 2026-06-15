@@ -28,6 +28,7 @@
 
     cursorBenchMeta: document.getElementById("cursorbench-meta"),
     cursorBenchOpenSource: document.getElementById("cursorbench-open-source"),
+    cursorBenchXMetric: document.getElementById("cursorbench-xmetric"),
     cursorBenchCanvas: document.getElementById("cursorbench-chart"),
     cursorBenchNote: document.getElementById("cursorbench-note"),
     cursorBenchTableBody: document.querySelector("#cursorbench-table tbody"),
@@ -46,6 +47,7 @@
     activeTab: persisted.activeTab || "usage",
     cursorBenchSortKey: persisted.cursorBenchSortKey || "score",
     cursorBenchSortOrder: persisted.cursorBenchSortOrder || "desc",
+    cursorBenchXMetric: persisted.cursorBenchXMetric || "costPerTask",
     sectionOpen: {
       usage: persisted.sectionOpen?.usage !== false,
       breakdown: persisted.sectionOpen?.breakdown !== false,
@@ -84,6 +86,7 @@
       activeTab: local.activeTab,
       cursorBenchSortKey: local.cursorBenchSortKey,
       cursorBenchSortOrder: local.cursorBenchSortOrder,
+      cursorBenchXMetric: local.cursorBenchXMetric,
       sectionOpen: local.sectionOpen,
     });
   }
@@ -778,6 +781,24 @@
     return Number.isFinite(n) ? n : 0;
   }
 
+  function cursorBenchBaseModel(name) {
+    // Groups variants like "Opus 4.8 Max" / "Opus 4.8 High" together.
+    // Keep this conservative; if a model has no tier suffix, it groups to itself.
+    return String(name || "")
+      .replace(/\s+(Max|Extra High|High|Medium|Low)\s*$/i, "")
+      .trim();
+  }
+
+  function cursorBenchColorForBase(base) {
+    // Stable palette mapping (sorted keys) so colors don't jump around.
+    if (!cursorBench || !Array.isArray(cursorBench.rows)) return PALETTE[0];
+    const bases = Array.from(
+      new Set(cursorBench.rows.map((r) => cursorBenchBaseModel(r.model))),
+    ).sort((a, b) => a.localeCompare(b));
+    const idx = bases.indexOf(base);
+    return PALETTE[(idx >= 0 ? idx : 0) % PALETTE.length];
+  }
+
   function getCursorBenchSortedRows() {
     if (!cursorBench || !Array.isArray(cursorBench.rows)) return [];
     const dir = local.cursorBenchSortOrder === "asc" ? 1 : -1;
@@ -802,10 +823,14 @@
 
     ui.cursorBenchTableBody.innerHTML = rows
       .map((r) => {
+        const base = cursorBenchBaseModel(r.model);
+        const color = cursorBenchColorForBase(base);
         return (
           "<tr>" +
           "<td>" +
+          '<span class="model-cell"><span class="model-dot" style="background:' + color + '"></span>' +
           escapeHtml(r.model) +
+          "</span>" +
           "</td>" +
           '<td class="num">' +
           fmtScorePct(r.score) +
@@ -839,7 +864,40 @@
     const rows = getCursorBenchSortedRows();
     if (rows.length === 0) return;
 
-    const points = rows.map((r) => ({ x: r.costPerTask, y: r.score, model: r.model }));
+    const xKey = local.cursorBenchXMetric || "costPerTask";
+    const xLabel =
+      xKey === "tokensPerTask" ? "Tokens / task" :
+      xKey === "stepsPerTask" ? "Steps / task" :
+      "Cost / task ($)";
+
+    const grouped = new Map();
+    for (const r of rows) {
+      const base = cursorBenchBaseModel(r.model);
+      const arr = grouped.get(base) || [];
+      arr.push({ x: r[xKey], y: r.score, model: r.model, base });
+      grouped.set(base, arr);
+    }
+
+    // Within each base-model dataset, sort by x so the connecting line is tidy.
+    const datasets = Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([base, pts]) => {
+        pts.sort((a, b) => (a.x - b.x));
+        const color = cursorBenchColorForBase(base);
+        return {
+          label: base,
+          data: pts,
+          showLine: true,
+          borderColor: color,
+          backgroundColor: color,
+          pointBackgroundColor: color,
+          pointBorderColor: color,
+          borderWidth: 1.5,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0,
+        };
+      });
 
     const styles = getComputedStyle(document.body);
     const muted = styles.getPropertyValue("--muted").trim() || "rgba(255,255,255,0.55)";
@@ -853,30 +911,37 @@
     cursorBenchChart = new Chart(ui.cursorBenchCanvas.getContext("2d"), {
       type: "scatter",
       data: {
-        datasets: [
-          {
-            label: "Models",
-            data: points,
-            pointRadius: (ctx) => (ctx.raw && ctx.raw.y >= 0.64 ? 4 : 3),
-            pointHoverRadius: 5,
-            pointBackgroundColor: PALETTE[0],
-            pointBorderColor: PALETTE[0],
-          },
-        ],
+        datasets,
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true,
+            position: "bottom",
+            labels: {
+              color: muted,
+              boxWidth: 8,
+              boxHeight: 8,
+              usePointStyle: true,
+              pointStyle: "circle",
+              font: { size: 11 },
+              padding: 12,
+            },
+          },
           tooltip: {
             callbacks: {
               label: (ctx) => {
                 const raw = ctx.raw || {};
                 const model = raw.model || "";
                 const score = Number.isFinite(raw.y) ? fmtScorePct(raw.y) : "—";
-                const cost = Number.isFinite(raw.x) ? fmtUsd(raw.x) : "—";
-                return model + " • score " + score + " • cost " + cost;
+                const xText =
+                  xKey === "costPerTask" ? (Number.isFinite(raw.x) ? fmtUsd(raw.x) : "—") :
+                  xKey === "tokensPerTask" ? (Number.isFinite(raw.x) ? formatTokens(raw.x) : "—") :
+                  (Number.isFinite(raw.x) ? formatRequests(raw.x) : "—");
+                const xPrefix = xKey === "costPerTask" ? "cost" : xKey === "tokensPerTask" ? "tokens" : "steps";
+                return model + " • score " + score + " • " + xPrefix + " " + xText;
               },
             },
           },
@@ -885,10 +950,11 @@
           x: {
             type: "linear",
             beginAtZero: true,
+            reverse: true,
             ticks: { color: muted, font: { size: 10 } },
             grid: { color: grid, drawBorder: false, drawTicks: false },
             border: { display: false },
-            title: { display: true, text: "Avg cost / task ($)", color: muted, font: { size: 11, weight: "500" } },
+            title: { display: true, text: xLabel, color: muted, font: { size: 11, weight: "500" } },
           },
           y: {
             type: "linear",
@@ -913,6 +979,7 @@
     if (ui.cursorBenchMeta) {
       ui.cursorBenchMeta.textContent = "v" + (cursorBench.version || "") + " • " + (cursorBench.capturedAt || "");
     }
+    if (ui.cursorBenchXMetric) ui.cursorBenchXMetric.value = local.cursorBenchXMetric;
     renderCursorBenchChart();
     renderCursorBenchTable();
     if (ui.cursorBenchNote) {
@@ -1033,6 +1100,14 @@
       }
       persistLocal();
       renderCursorBenchTable();
+    });
+  }
+
+  if (ui.cursorBenchXMetric) {
+    ui.cursorBenchXMetric.addEventListener("change", () => {
+      local.cursorBenchXMetric = ui.cursorBenchXMetric.value;
+      persistLocal();
+      if (local.activeTab === "cursorbench") renderCursorBenchChart();
     });
   }
 

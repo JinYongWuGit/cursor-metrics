@@ -47,7 +47,7 @@ body {
   color: var(--fg);
   background: var(--bg);
   margin: 0 auto;
-  max-width: 1000px;
+  max-width: 1240px;
   padding: 16px 20px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
@@ -313,7 +313,7 @@ label select { color: var(--input-fg); }
 }
 
 .cursorbench-wrapper {
-  height: 280px;
+  height: 380px;
 }
 
 .table-scroll { overflow-x: auto; }

@@ -290,6 +290,13 @@ export class DashboardPanel {
           <p class="muted">Snapshot of cursor.com/cursorbench</p>
         </div>
         <div class="header-actions">
+          <label>X:
+            <select id="cursorbench-xmetric">
+              <option value="costPerTask">Cost / task</option>
+              <option value="tokensPerTask">Tokens / task</option>
+              <option value="stepsPerTask">Steps / task</option>
+            </select>
+          </label>
           <span id="cursorbench-meta" class="muted small"></span>
           <button id="cursorbench-open-source" type="button">Open Source</button>
         </div>
