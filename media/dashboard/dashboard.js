@@ -5,6 +5,10 @@
   const DAY_MS = 86_400_000;
 
   const ui = {
+    tabUsage: document.getElementById("tab-usage"),
+    tabCursorBench: document.getElementById("tab-cursorbench"),
+    panelUsage: document.getElementById("tab-panel-usage"),
+    panelCursorBench: document.getElementById("tab-panel-cursorbench"),
     summaryCards: document.getElementById("summary-cards"),
     rangeSelector: document.getElementById("range-selector"),
     usageFilter: document.getElementById("usage-filter"),
@@ -21,6 +25,13 @@
     exportBtn: document.getElementById("export-csv"),
     lastUpdated: document.getElementById("last-updated"),
     errorBanner: document.getElementById("error-banner"),
+
+    cursorBenchMeta: document.getElementById("cursorbench-meta"),
+    cursorBenchOpenSource: document.getElementById("cursorbench-open-source"),
+    cursorBenchCanvas: document.getElementById("cursorbench-chart"),
+    cursorBenchNote: document.getElementById("cursorbench-note"),
+    cursorBenchTableBody: document.querySelector("#cursorbench-table tbody"),
+    cursorBenchTableHead: document.querySelector("#cursorbench-table thead"),
   };
 
   const persisted = vscode.getState() || {};
@@ -32,6 +43,9 @@
     sortOrder: persisted.sortOrder || "desc",
     breakdownSortKey: persisted.breakdownSortKey || "totalTokens",
     breakdownSortOrder: persisted.breakdownSortOrder || "desc",
+    activeTab: persisted.activeTab || "usage",
+    cursorBenchSortKey: persisted.cursorBenchSortKey || "score",
+    cursorBenchSortOrder: persisted.cursorBenchSortOrder || "desc",
     sectionOpen: {
       usage: persisted.sectionOpen?.usage !== false,
       breakdown: persisted.sectionOpen?.breakdown !== false,
@@ -41,6 +55,8 @@
 
   let state = null;
   let chart = null;
+  let cursorBench = null;
+  let cursorBenchChart = null;
 
   // Soft pastel palette that pairs with the shadcn dark surface — gentle, low-saturation
   // hues with enough contrast against the card background. Ordered so adjacent series
@@ -65,8 +81,36 @@
       sortOrder: local.sortOrder,
       breakdownSortKey: local.breakdownSortKey,
       breakdownSortOrder: local.breakdownSortOrder,
+      activeTab: local.activeTab,
+      cursorBenchSortKey: local.cursorBenchSortKey,
+      cursorBenchSortOrder: local.cursorBenchSortOrder,
       sectionOpen: local.sectionOpen,
     });
+  }
+
+  function setActiveTab(tab) {
+    local.activeTab = tab === "cursorbench" ? "cursorbench" : "usage";
+    persistLocal();
+
+    if (ui.panelUsage) ui.panelUsage.classList.toggle("hidden", local.activeTab !== "usage");
+    if (ui.panelCursorBench) ui.panelCursorBench.classList.toggle("hidden", local.activeTab !== "cursorbench");
+
+    if (ui.tabUsage) {
+      ui.tabUsage.classList.toggle("active", local.activeTab === "usage");
+      ui.tabUsage.setAttribute("aria-selected", local.activeTab === "usage" ? "true" : "false");
+    }
+    if (ui.tabCursorBench) {
+      ui.tabCursorBench.classList.toggle("active", local.activeTab === "cursorbench");
+      ui.tabCursorBench.setAttribute("aria-selected", local.activeTab === "cursorbench" ? "true" : "false");
+    }
+
+    // Chart.js needs a redraw when switching into the tab.
+    if (local.activeTab === "usage" && state) {
+      renderChart();
+    }
+    if (local.activeTab === "cursorbench" && cursorBench) {
+      renderCursorBench();
+    }
   }
 
   function setSectionCollapsed(section, isOpen) {
@@ -710,11 +754,170 @@
     ui.metricFilter.value = local.metric;
     applyTeamMemberConstraints();
     renderSummaryCards();
-    renderChart();
-    renderBreakdown();
-    renderTable();
+    if (local.activeTab === "usage") {
+      renderChart();
+      renderBreakdown();
+      renderTable();
+    }
     showError(state.error);
     ui.lastUpdated.textContent = "Updated " + new Date(state.generatedAt).toLocaleTimeString();
+  }
+
+  function fmtScorePct(s) {
+    if (!Number.isFinite(s)) return "—";
+    return (Math.round(s * 1000) / 10).toFixed(1) + "%";
+  }
+
+  function fmtUsd(n) {
+    if (!Number.isFinite(n)) return "—";
+    return "$" + n.toFixed(2);
+  }
+
+  function safeNumber(v) {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function getCursorBenchSortedRows() {
+    if (!cursorBench || !Array.isArray(cursorBench.rows)) return [];
+    const dir = local.cursorBenchSortOrder === "asc" ? 1 : -1;
+    const key = local.cursorBenchSortKey;
+    return cursorBench.rows.slice().sort((a, b) => {
+      const av = a[key];
+      const bv = b[key];
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      if (key === "model") return String(av).localeCompare(String(bv)) * dir;
+      return (safeNumber(av) - safeNumber(bv)) * dir;
+    });
+  }
+
+  function renderCursorBenchTable() {
+    if (!ui.cursorBenchTableBody) return;
+    const rows = getCursorBenchSortedRows();
+    if (rows.length === 0) {
+      ui.cursorBenchTableBody.innerHTML =
+        '<tr><td colspan="5" style="text-align:center; padding:24px;" class="muted">No snapshot data</td></tr>';
+      return;
+    }
+
+    ui.cursorBenchTableBody.innerHTML = rows
+      .map((r) => {
+        return (
+          "<tr>" +
+          "<td>" +
+          escapeHtml(r.model) +
+          "</td>" +
+          '<td class="num">' +
+          fmtScorePct(r.score) +
+          "</td>" +
+          '<td class="num">' +
+          fmtUsd(r.costPerTask) +
+          "</td>" +
+          '<td class="num">' +
+          formatTokens(r.tokensPerTask) +
+          "</td>" +
+          '<td class="num">' +
+          formatRequests(r.stepsPerTask) +
+          "</td>" +
+          "</tr>"
+        );
+      })
+      .join("");
+
+    if (ui.cursorBenchTableHead) {
+      ui.cursorBenchTableHead.querySelectorAll("th.sortable").forEach((th) => {
+        th.classList.remove("sorted-asc", "sorted-desc");
+        if (th.dataset.sort === local.cursorBenchSortKey) {
+          th.classList.add(local.cursorBenchSortOrder === "asc" ? "sorted-asc" : "sorted-desc");
+        }
+      });
+    }
+  }
+
+  function renderCursorBenchChart() {
+    if (!ui.cursorBenchCanvas) return;
+    const rows = getCursorBenchSortedRows();
+    if (rows.length === 0) return;
+
+    const points = rows.map((r) => ({ x: r.costPerTask, y: r.score, model: r.model }));
+
+    const styles = getComputedStyle(document.body);
+    const muted = styles.getPropertyValue("--muted").trim() || "rgba(255,255,255,0.55)";
+    const grid = styles.getPropertyValue("--border").trim() || "rgba(255,255,255,0.06)";
+
+    if (cursorBenchChart) {
+      cursorBenchChart.destroy();
+      cursorBenchChart = null;
+    }
+
+    cursorBenchChart = new Chart(ui.cursorBenchCanvas.getContext("2d"), {
+      type: "scatter",
+      data: {
+        datasets: [
+          {
+            label: "Models",
+            data: points,
+            pointRadius: (ctx) => (ctx.raw && ctx.raw.y >= 0.64 ? 4 : 3),
+            pointHoverRadius: 5,
+            pointBackgroundColor: PALETTE[0],
+            pointBorderColor: PALETTE[0],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const raw = ctx.raw || {};
+                const model = raw.model || "";
+                const score = Number.isFinite(raw.y) ? fmtScorePct(raw.y) : "—";
+                const cost = Number.isFinite(raw.x) ? fmtUsd(raw.x) : "—";
+                return model + " • score " + score + " • cost " + cost;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: "linear",
+            beginAtZero: true,
+            ticks: { color: muted, font: { size: 10 } },
+            grid: { color: grid, drawBorder: false, drawTicks: false },
+            border: { display: false },
+            title: { display: true, text: "Avg cost / task ($)", color: muted, font: { size: 11, weight: "500" } },
+          },
+          y: {
+            type: "linear",
+            min: 0.3,
+            max: 0.75,
+            ticks: {
+              color: muted,
+              font: { size: 10 },
+              callback: (v) => Math.round(v * 100) + "%",
+            },
+            grid: { color: grid, drawBorder: false, drawTicks: false },
+            border: { display: false },
+            title: { display: true, text: "CursorBench score", color: muted, font: { size: 11, weight: "500" } },
+          },
+        },
+      },
+    });
+  }
+
+  function renderCursorBench() {
+    if (!cursorBench) return;
+    if (ui.cursorBenchMeta) {
+      ui.cursorBenchMeta.textContent = "v" + (cursorBench.version || "") + " • " + (cursorBench.capturedAt || "");
+    }
+    renderCursorBenchChart();
+    renderCursorBenchTable();
+    if (ui.cursorBenchNote) {
+      ui.cursorBenchNote.textContent = cursorBench.sourceUrl ? "Source: " + cursorBench.sourceUrl : "";
+    }
   }
 
   // Event wiring
@@ -799,10 +1002,42 @@
     } else if (msg.type === "loading") {
       ui.refreshBtn.disabled = !!msg.on;
       ui.refreshBtn.textContent = msg.on ? "Refreshing…" : "Refresh";
+    } else if (msg.type === "cursorbench") {
+      cursorBench = msg.snapshot || null;
+      if (local.activeTab === "cursorbench") renderCursorBench();
+    } else if (msg.type === "selectTab") {
+      setActiveTab(msg.tab);
     }
   });
 
+  if (ui.tabUsage) ui.tabUsage.addEventListener("click", () => setActiveTab("usage"));
+  if (ui.tabCursorBench) ui.tabCursorBench.addEventListener("click", () => setActiveTab("cursorbench"));
+
+  if (ui.cursorBenchOpenSource) {
+    ui.cursorBenchOpenSource.addEventListener("click", () => {
+      const url = cursorBench && cursorBench.sourceUrl ? cursorBench.sourceUrl : "https://cursor.com/cursorbench";
+      vscode.postMessage({ type: "openExternal", url });
+    });
+  }
+
+  if (ui.cursorBenchTableHead) {
+    ui.cursorBenchTableHead.addEventListener("click", (e) => {
+      const th = e.target.closest("th.sortable");
+      if (!th) return;
+      const key = th.dataset.sort;
+      if (local.cursorBenchSortKey === key) {
+        local.cursorBenchSortOrder = local.cursorBenchSortOrder === "asc" ? "desc" : "asc";
+      } else {
+        local.cursorBenchSortKey = key;
+        local.cursorBenchSortOrder = key === "model" ? "asc" : "desc";
+      }
+      persistLocal();
+      renderCursorBenchTable();
+    });
+  }
+
   applySectionState();
+  setActiveTab(local.activeTab);
   // Tell host we're ready
   vscode.postMessage({ type: "ready" });
 })();
