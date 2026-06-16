@@ -5,6 +5,10 @@
   const DAY_MS = 86_400_000;
 
   const ui = {
+    tabUsage: document.getElementById("tab-usage"),
+    tabCursorBench: document.getElementById("tab-cursorbench"),
+    panelUsage: document.getElementById("tab-panel-usage"),
+    panelCursorBench: document.getElementById("tab-panel-cursorbench"),
     summaryCards: document.getElementById("summary-cards"),
     rangeSelector: document.getElementById("range-selector"),
     usageFilter: document.getElementById("usage-filter"),
@@ -21,6 +25,14 @@
     exportBtn: document.getElementById("export-csv"),
     lastUpdated: document.getElementById("last-updated"),
     errorBanner: document.getElementById("error-banner"),
+
+    cursorBenchMeta: document.getElementById("cursorbench-meta"),
+    cursorBenchOpenSource: document.getElementById("cursorbench-open-source"),
+    cursorBenchXMetric: document.getElementById("cursorbench-xmetric"),
+    cursorBenchCanvas: document.getElementById("cursorbench-chart"),
+    cursorBenchNote: document.getElementById("cursorbench-note"),
+    cursorBenchTableBody: document.querySelector("#cursorbench-table tbody"),
+    cursorBenchTableHead: document.querySelector("#cursorbench-table thead"),
   };
 
   const persisted = vscode.getState() || {};
@@ -32,6 +44,10 @@
     sortOrder: persisted.sortOrder || "desc",
     breakdownSortKey: persisted.breakdownSortKey || "totalTokens",
     breakdownSortOrder: persisted.breakdownSortOrder || "desc",
+    activeTab: persisted.activeTab || "usage",
+    cursorBenchSortKey: persisted.cursorBenchSortKey || "score",
+    cursorBenchSortOrder: persisted.cursorBenchSortOrder || "desc",
+    cursorBenchXMetric: persisted.cursorBenchXMetric || "costPerTask",
     sectionOpen: {
       usage: persisted.sectionOpen?.usage !== false,
       breakdown: persisted.sectionOpen?.breakdown !== false,
@@ -41,6 +57,8 @@
 
   let state = null;
   let chart = null;
+  let cursorBench = null;
+  let cursorBenchChart = null;
 
   // Soft pastel palette that pairs with the shadcn dark surface — gentle, low-saturation
   // hues with enough contrast against the card background. Ordered so adjacent series
@@ -65,8 +83,37 @@
       sortOrder: local.sortOrder,
       breakdownSortKey: local.breakdownSortKey,
       breakdownSortOrder: local.breakdownSortOrder,
+      activeTab: local.activeTab,
+      cursorBenchSortKey: local.cursorBenchSortKey,
+      cursorBenchSortOrder: local.cursorBenchSortOrder,
+      cursorBenchXMetric: local.cursorBenchXMetric,
       sectionOpen: local.sectionOpen,
     });
+  }
+
+  function setActiveTab(tab) {
+    local.activeTab = tab === "cursorbench" ? "cursorbench" : "usage";
+    persistLocal();
+
+    if (ui.panelUsage) ui.panelUsage.classList.toggle("hidden", local.activeTab !== "usage");
+    if (ui.panelCursorBench) ui.panelCursorBench.classList.toggle("hidden", local.activeTab !== "cursorbench");
+
+    if (ui.tabUsage) {
+      ui.tabUsage.classList.toggle("active", local.activeTab === "usage");
+      ui.tabUsage.setAttribute("aria-selected", local.activeTab === "usage" ? "true" : "false");
+    }
+    if (ui.tabCursorBench) {
+      ui.tabCursorBench.classList.toggle("active", local.activeTab === "cursorbench");
+      ui.tabCursorBench.setAttribute("aria-selected", local.activeTab === "cursorbench" ? "true" : "false");
+    }
+
+    // Chart.js needs a redraw when switching into the tab.
+    if (local.activeTab === "usage" && state) {
+      renderChart();
+    }
+    if (local.activeTab === "cursorbench" && cursorBench) {
+      renderCursorBench();
+    }
   }
 
   function setSectionCollapsed(section, isOpen) {
@@ -199,16 +246,17 @@
     }
     const { includedRequests, onDemand, includedSpend } = state.data;
     const hasSpend = includedSpend && includedSpend.totalDollars > 0;
+    const onDemandSpend = hasSpend ? Math.max(0, includedSpend.totalDollars - includedSpend.includedDollars) : 0;
     const ratio = hasSpend
-      ? Math.min(1, includedSpend.includedDollars / includedSpend.totalDollars)
+      ? Math.min(1, onDemandSpend / includedSpend.totalDollars)
       : (includedRequests.limit > 0 ? Math.min(1, includedRequests.used / includedRequests.limit) : 0);
     const pct = Math.round(ratio * 100);
 
     const parts = [];
     parts.push(
       '<div class="card">' +
-        '<div class="card-label">' + (hasSpend ? "Included spend" : "Included-Request Usage") + "</div>" +
-        '<div class="card-value">' + (hasSpend ? (formatDollars(includedSpend.includedDollars) + " / " + formatDollars(includedSpend.totalDollars)) : (includedRequests.used + " / " + includedRequests.limit)) + "</div>" +
+        '<div class="card-label">' + (hasSpend ? "On-demand spend" : "Included-Request Usage") + "</div>" +
+        '<div class="card-value">' + (hasSpend ? formatDollars(onDemandSpend) : (includedRequests.used + " / " + includedRequests.limit)) + "</div>" +
         '<div class="progress"><div style="width:' + (pct) + '%"></div></div>' +
         '<div class="card-footer">' + formatResetCountdown(state.resetsAt) + "</div>" +
       "</div>"
@@ -710,11 +758,234 @@
     ui.metricFilter.value = local.metric;
     applyTeamMemberConstraints();
     renderSummaryCards();
-    renderChart();
-    renderBreakdown();
-    renderTable();
+    if (local.activeTab === "usage") {
+      renderChart();
+      renderBreakdown();
+      renderTable();
+    }
     showError(state.error);
     ui.lastUpdated.textContent = "Updated " + new Date(state.generatedAt).toLocaleTimeString();
+  }
+
+  function fmtScorePct(s) {
+    if (!Number.isFinite(s)) return "—";
+    return (Math.round(s * 1000) / 10).toFixed(1) + "%";
+  }
+
+  function fmtUsd(n) {
+    if (!Number.isFinite(n)) return "—";
+    return "$" + n.toFixed(2);
+  }
+
+  function safeNumber(v) {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function cursorBenchBaseModel(name) {
+    // Groups variants like "Opus 4.8 Max" / "Opus 4.8 High" together.
+    // Keep this conservative; if a model has no tier suffix, it groups to itself.
+    return String(name || "")
+      .replace(/\s+(Max|Extra High|High|Medium|Low)\s*$/i, "")
+      .trim();
+  }
+
+  function cursorBenchColorForBase(base) {
+    // Stable palette mapping (sorted keys) so colors don't jump around.
+    if (!cursorBench || !Array.isArray(cursorBench.rows)) return PALETTE[0];
+    const bases = Array.from(
+      new Set(cursorBench.rows.map((r) => cursorBenchBaseModel(r.model))),
+    ).sort((a, b) => a.localeCompare(b));
+    const idx = bases.indexOf(base);
+    return PALETTE[(idx >= 0 ? idx : 0) % PALETTE.length];
+  }
+
+  function getCursorBenchSortedRows() {
+    if (!cursorBench || !Array.isArray(cursorBench.rows)) return [];
+    const dir = local.cursorBenchSortOrder === "asc" ? 1 : -1;
+    const key = local.cursorBenchSortKey;
+    return cursorBench.rows.slice().sort((a, b) => {
+      const av = a[key];
+      const bv = b[key];
+      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+      if (key === "model") return String(av).localeCompare(String(bv)) * dir;
+      return (safeNumber(av) - safeNumber(bv)) * dir;
+    });
+  }
+
+  function renderCursorBenchTable() {
+    if (!ui.cursorBenchTableBody) return;
+    const rows = getCursorBenchSortedRows();
+    if (rows.length === 0) {
+      ui.cursorBenchTableBody.innerHTML =
+        '<tr><td colspan="5" style="text-align:center; padding:24px;" class="muted">No snapshot data</td></tr>';
+      return;
+    }
+
+    ui.cursorBenchTableBody.innerHTML = rows
+      .map((r) => {
+        const base = cursorBenchBaseModel(r.model);
+        const color = cursorBenchColorForBase(base);
+        return (
+          "<tr>" +
+          "<td>" +
+          '<span class="model-cell"><span class="model-dot" style="background:' + color + '"></span>' +
+          escapeHtml(r.model) +
+          "</span>" +
+          "</td>" +
+          '<td class="num">' +
+          fmtScorePct(r.score) +
+          "</td>" +
+          '<td class="num">' +
+          fmtUsd(r.costPerTask) +
+          "</td>" +
+          '<td class="num">' +
+          formatTokens(r.tokensPerTask) +
+          "</td>" +
+          '<td class="num">' +
+          formatRequests(r.stepsPerTask) +
+          "</td>" +
+          "</tr>"
+        );
+      })
+      .join("");
+
+    if (ui.cursorBenchTableHead) {
+      ui.cursorBenchTableHead.querySelectorAll("th.sortable").forEach((th) => {
+        th.classList.remove("sorted-asc", "sorted-desc");
+        if (th.dataset.sort === local.cursorBenchSortKey) {
+          th.classList.add(local.cursorBenchSortOrder === "asc" ? "sorted-asc" : "sorted-desc");
+        }
+      });
+    }
+  }
+
+  function renderCursorBenchChart() {
+    if (!ui.cursorBenchCanvas) return;
+    const rows = getCursorBenchSortedRows();
+    if (rows.length === 0) return;
+
+    const xKey = local.cursorBenchXMetric || "costPerTask";
+    const xLabel =
+      xKey === "tokensPerTask" ? "Tokens / task" :
+      xKey === "stepsPerTask" ? "Steps / task" :
+      "Cost / task ($)";
+
+    const grouped = new Map();
+    for (const r of rows) {
+      const base = cursorBenchBaseModel(r.model);
+      const arr = grouped.get(base) || [];
+      arr.push({ x: r[xKey], y: r.score, model: r.model, base });
+      grouped.set(base, arr);
+    }
+
+    // Within each base-model dataset, sort by x so the connecting line is tidy.
+    const datasets = Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([base, pts]) => {
+        pts.sort((a, b) => (a.x - b.x));
+        const color = cursorBenchColorForBase(base);
+        return {
+          label: base,
+          data: pts,
+          showLine: true,
+          borderColor: color,
+          backgroundColor: color,
+          pointBackgroundColor: color,
+          pointBorderColor: color,
+          borderWidth: 1.5,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0,
+        };
+      });
+
+    const styles = getComputedStyle(document.body);
+    const muted = styles.getPropertyValue("--muted").trim() || "rgba(255,255,255,0.55)";
+    const grid = styles.getPropertyValue("--border").trim() || "rgba(255,255,255,0.06)";
+
+    if (cursorBenchChart) {
+      cursorBenchChart.destroy();
+      cursorBenchChart = null;
+    }
+
+    cursorBenchChart = new Chart(ui.cursorBenchCanvas.getContext("2d"), {
+      type: "scatter",
+      data: {
+        datasets,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: "bottom",
+            labels: {
+              color: muted,
+              boxWidth: 8,
+              boxHeight: 8,
+              usePointStyle: true,
+              pointStyle: "circle",
+              font: { size: 11 },
+              padding: 12,
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const raw = ctx.raw || {};
+                const model = raw.model || "";
+                const score = Number.isFinite(raw.y) ? fmtScorePct(raw.y) : "—";
+                const xText =
+                  xKey === "costPerTask" ? (Number.isFinite(raw.x) ? fmtUsd(raw.x) : "—") :
+                  xKey === "tokensPerTask" ? (Number.isFinite(raw.x) ? formatTokens(raw.x) : "—") :
+                  (Number.isFinite(raw.x) ? formatRequests(raw.x) : "—");
+                const xPrefix = xKey === "costPerTask" ? "cost" : xKey === "tokensPerTask" ? "tokens" : "steps";
+                return model + " • score " + score + " • " + xPrefix + " " + xText;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: "linear",
+            beginAtZero: true,
+            reverse: true,
+            ticks: { color: muted, font: { size: 10 } },
+            grid: { color: grid, drawBorder: false, drawTicks: false },
+            border: { display: false },
+            title: { display: true, text: xLabel, color: muted, font: { size: 11, weight: "500" } },
+          },
+          y: {
+            type: "linear",
+            min: 0.3,
+            max: 0.75,
+            ticks: {
+              color: muted,
+              font: { size: 10 },
+              callback: (v) => Math.round(v * 100) + "%",
+            },
+            grid: { color: grid, drawBorder: false, drawTicks: false },
+            border: { display: false },
+            title: { display: true, text: "CursorBench score", color: muted, font: { size: 11, weight: "500" } },
+          },
+        },
+      },
+    });
+  }
+
+  function renderCursorBench() {
+    if (!cursorBench) return;
+    if (ui.cursorBenchMeta) {
+      ui.cursorBenchMeta.textContent = "v" + (cursorBench.version || "") + " • " + (cursorBench.capturedAt || "");
+    }
+    if (ui.cursorBenchXMetric) ui.cursorBenchXMetric.value = local.cursorBenchXMetric;
+    renderCursorBenchChart();
+    renderCursorBenchTable();
+    if (ui.cursorBenchNote) {
+      ui.cursorBenchNote.textContent = cursorBench.sourceUrl ? "Source: " + cursorBench.sourceUrl : "";
+    }
   }
 
   // Event wiring
@@ -799,10 +1070,50 @@
     } else if (msg.type === "loading") {
       ui.refreshBtn.disabled = !!msg.on;
       ui.refreshBtn.textContent = msg.on ? "Refreshing…" : "Refresh";
+    } else if (msg.type === "cursorbench") {
+      cursorBench = msg.snapshot || null;
+      if (local.activeTab === "cursorbench") renderCursorBench();
+    } else if (msg.type === "selectTab") {
+      setActiveTab(msg.tab);
     }
   });
 
+  if (ui.tabUsage) ui.tabUsage.addEventListener("click", () => setActiveTab("usage"));
+  if (ui.tabCursorBench) ui.tabCursorBench.addEventListener("click", () => setActiveTab("cursorbench"));
+
+  if (ui.cursorBenchOpenSource) {
+    ui.cursorBenchOpenSource.addEventListener("click", () => {
+      const url = cursorBench && cursorBench.sourceUrl ? cursorBench.sourceUrl : "https://cursor.com/cursorbench";
+      vscode.postMessage({ type: "openExternal", url });
+    });
+  }
+
+  if (ui.cursorBenchTableHead) {
+    ui.cursorBenchTableHead.addEventListener("click", (e) => {
+      const th = e.target.closest("th.sortable");
+      if (!th) return;
+      const key = th.dataset.sort;
+      if (local.cursorBenchSortKey === key) {
+        local.cursorBenchSortOrder = local.cursorBenchSortOrder === "asc" ? "desc" : "asc";
+      } else {
+        local.cursorBenchSortKey = key;
+        local.cursorBenchSortOrder = key === "model" ? "asc" : "desc";
+      }
+      persistLocal();
+      renderCursorBenchTable();
+    });
+  }
+
+  if (ui.cursorBenchXMetric) {
+    ui.cursorBenchXMetric.addEventListener("change", () => {
+      local.cursorBenchXMetric = ui.cursorBenchXMetric.value;
+      persistLocal();
+      if (local.activeTab === "cursorbench") renderCursorBenchChart();
+    });
+  }
+
   applySectionState();
+  setActiveTab(local.activeTab);
   // Tell host we're ready
   vscode.postMessage({ type: "ready" });
 })();

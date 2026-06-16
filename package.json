@@ -1,6 +1,6 @@
 {
   "name": "cursor-usage-team",
-  "version": "0.6.3",
+  "version": "0.6.5",
   "repository": {
     "type": "git",
     "url": "https://github.com/JinYongWuGit/cursor-metrics"
@@ -122,6 +122,14 @@
           "type": "boolean",
           "default": true,
           "description": "In the dashboard, show included usage as requests and on-demand usage as spend instead of showing raw request and spend values for every event."
+        },
+        "cursorUsage.dbPath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Override the Cursor globalStorage database path (state.vscdb). Useful for WSL or custom installs."
         }
       }
     }

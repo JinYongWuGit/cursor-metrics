@@ -29,8 +29,9 @@ function formatIncludedValue(includedRequests: IncludedRequestsUsage): string {
   return `${includedRequests.used} / ${includedRequests.limit}`;
 }
 
-function formatIncludedSpendValue(includedSpend: NonNullable<UsagePayload["includedSpend"]>): string {
-  return `$${includedSpend.includedDollars.toFixed(2)} / $${includedSpend.totalDollars.toFixed(2)}`;
+function formatOnDemandSpendValue(includedSpend: NonNullable<UsagePayload["includedSpend"]>): string {
+  const onDemandDollars = Math.max(0, includedSpend.totalDollars - includedSpend.includedDollars);
+  return `$${onDemandDollars.toFixed(2)}`;
 }
 
 function formatOnDemandValue(onDemand: OnDemandUsage): string {
@@ -111,10 +112,11 @@ export function buildUsageOverviewMarkdown(
 ): string {
   const { includedRequests, onDemand, includedSpend } = data;
   if (includedSpend) {
-    const ratio = includedSpend.totalDollars > 0 ? includedSpend.includedDollars / includedSpend.totalDollars : 0;
-    const includedColumn: SummaryColumn = {
-      label: "Included spend",
-      value: formatIncludedSpendValue(includedSpend),
+    const onDemandDollars = Math.max(0, includedSpend.totalDollars - includedSpend.includedDollars);
+    const ratio = includedSpend.totalDollars > 0 ? onDemandDollars / includedSpend.totalDollars : 0;
+    const leftColumn: SummaryColumn = {
+      label: "On-demand spend",
+      value: formatOnDemandSpendValue(includedSpend),
       footer: renderProgressBar.html(ratio),
     };
     const rightColumn: SummaryColumn = {
@@ -122,7 +124,7 @@ export function buildUsageOverviewMarkdown(
       value: formatOnDemandValue(onDemand),
       footer: onDemand.footer ? `<sub>${onDemand.footer}</sub>` : "<sub></sub>",
     };
-    return buildSummaryTable([includedColumn, rightColumn], renderProgressBar);
+    return buildSummaryTable([leftColumn, rightColumn], renderProgressBar);
   }
 
   return buildSummaryTable(buildSummaryColumns(includedRequests, onDemand, renderProgressBar), renderProgressBar);

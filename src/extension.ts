@@ -11,6 +11,7 @@ import {
 } from "./cursor-api";
 import { DashboardPanel, OPEN_DASHBOARD_COMMAND } from "./dashboard-panel";
 import { buildDashboardState, type DashboardState } from "./dashboard-state";
+import { loadCursorBenchSnapshot, type CursorBenchSnapshot } from "./cursorbench-data";
 import {
   resolveConfiguredUsageDuration,
 } from "./duration-options";
@@ -39,6 +40,7 @@ let lastFetchTime = 0;
 let isFetching = false;
 let lastEvents: UsageEvent[] | null = null;
 let lastDailySpend: DailySpendRow[] | null = null;
+let cursorBench: CursorBenchSnapshot | null = null;
 
 const DEBOUNCE_MS = 30_000;
 
@@ -59,6 +61,7 @@ function getConfig() {
     modelBreakdownSortOrder,
     excludeZeroTokenModels: cfg.get<boolean>("excludeZeroTokenModels", false),
     quotaAwareEventDisplay: cfg.get<boolean>("quotaAwareEventDisplay", true),
+    dbPath: cfg.get<string | null>("dbPath", null),
   };
 }
 
@@ -288,8 +291,16 @@ function updateStatusBar(data: UsagePayload) {
     md += `*Resets ${formatResetDate(data.resetsAt)}*\n\n`;
   }
 
+  if (cursorBench && cursorBench.rows.length > 0) {
+    md += `<hr>\n\n`;
+    md += `[CursorBench](command:${OPEN_DASHBOARD_COMMAND}?%5B%22cursorbench%22%5D) | `;
+    md += `[Open Source](${cursorBench.sourceUrl})\n\n`;
+  }
+
   md += `<hr>\n\n`;
-  md += `[Open Dashboard](command:${OPEN_DASHBOARD_COMMAND}) | [Refresh](command:cursor-usage.refresh)`;
+  md += `[CursorUsage](command:${OPEN_DASHBOARD_COMMAND}?%5B%22usage%22%5D) | `;
+  md += `[Open Source](https://cursor.com/dashboard/usage) | `;
+  md += `[Refresh](command:cursor-usage.refresh)`;
 
   tooltip.appendMarkdown(md);
   statusBarItem.tooltip = tooltip;
@@ -444,7 +455,20 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("Cursor Usage");
   log("Extension activating...");
 
-  configure({ logger: log });
+  configure({ logger: log, dbPathOverride: getConfig().dbPath });
+
+  // Best-effort load; if it fails, we just omit CursorBench UI.
+  loadCursorBenchSnapshot(context.extensionUri)
+    .then((snap) => {
+      cursorBench = snap;
+      if (lastData) updateStatusBar(lastData);
+      // If the dashboard is already open, refresh it with the new data.
+      DashboardPanel.currentPanel?.postCursorBench(cursorBench);
+    })
+    .catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      log(`CursorBench snapshot load failed: ${msg}`);
+    });
 
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = OPEN_DASHBOARD_COMMAND;
@@ -454,9 +478,12 @@ export function activate(context: vscode.ExtensionContext) {
   const showDetailsCmd = vscode.commands.registerCommand("cursor-usage.showDetails", showDetails);
   const refreshCmd = vscode.commands.registerCommand("cursor-usage.refresh", updateUsage);
   const openDurationSettingCmd = vscode.commands.registerCommand(OPEN_DURATION_SETTING_COMMAND, openDurationSetting);
-  const openDashboardCmd = vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, () => {
+  // Support command-URI args: command:cursor-usage.openDashboard?["cursorbench"]
+  const openDashboardCmd = vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, (tab?: unknown) => {
     DashboardPanel.createOrShow(context, updateUsage, getDashboardState);
     DashboardPanel.currentPanel?.postState(getDashboardState());
+    if (cursorBench) DashboardPanel.currentPanel?.postCursorBench(cursorBench);
+    if (typeof tab === "string" && tab) DashboardPanel.currentPanel?.selectTab(tab);
   });
 
   const configListener = vscode.workspace.onDidChangeConfiguration((e) => {

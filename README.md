@@ -32,6 +32,18 @@ Note: this extension targets Cursor **Team** billing/usage (individual usage wit
 - `cursorUsage.modelBreakdownSortOrder` (default: `desc`) - sort direction for the Usage by Model table (`asc`, `desc`).
 - `cursorUsage.excludeZeroTokenModels` (default: `false`) - hide rows where token usage is zero.
 - `cursorUsage.quotaAwareEventDisplay` (default: `true`) - in the dashboard, show included usage as requests and on-demand usage as spend (instead of raw request/spend values for every event).
+- `cursorUsage.dbPath` (default: `null`) - override the Cursor `state.vscdb` location (useful for WSL/custom installs).
+
+## WSL support
+
+When running under **WSL**, Cursor’s `state.vscdb` typically lives on the Windows filesystem. This extension will automatically probe:
+
+- `/mnt/c/Users/*/AppData/Roaming/Cursor/User/globalStorage/state.vscdb`
+
+If auto-detection doesn’t work (custom mount points, non-default install paths), use either override:
+
+- `CURSOR_USAGE_DB_PATH=/mnt/c/Users/<WIN_USER>/AppData/Roaming/Cursor/User/globalStorage/state.vscdb`
+- `cursorUsage.dbPath` setting (absolute path)
 
 ## Privacy and behavior
 

@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import * as vscode from "vscode";
 import type { DashboardState } from "./dashboard-state";
+import type { CursorBenchSnapshot } from "./cursorbench-data";
 
 export const OPEN_DASHBOARD_COMMAND = "cursor-usage.openDashboard";
 
@@ -41,6 +42,8 @@ export class DashboardPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly disposables: vscode.Disposable[] = [];
+  private pendingTab: string | null = null;
+  private lastCursorBench: CursorBenchSnapshot | null = null;
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -59,12 +62,24 @@ export class DashboardPanel {
         if (msg.type === "ready") {
           const state = getState();
           if (state) this.postState(state);
+          if (this.lastCursorBench) this.postCursorBench(this.lastCursorBench);
+          if (this.pendingTab) {
+            this.panel.webview.postMessage({ type: "selectTab", tab: this.pendingTab });
+            this.pendingTab = null;
+          }
         } else if (msg.type === "refresh") {
           this.postLoading(true);
           try {
             await onRefresh();
           } finally {
             this.postLoading(false);
+          }
+        } else if (msg.type === "openExternal" && typeof (msg as any).url === "string") {
+          const url = String((msg as any).url);
+          try {
+            await vscode.env.openExternal(vscode.Uri.parse(url));
+          } catch {
+            // ignore
           }
         }
       },
@@ -79,6 +94,17 @@ export class DashboardPanel {
 
   postLoading(on: boolean): void {
     this.panel.webview.postMessage({ type: "loading", on });
+  }
+
+  postCursorBench(snapshot: CursorBenchSnapshot): void {
+    this.lastCursorBench = snapshot;
+    this.panel.webview.postMessage({ type: "cursorbench", snapshot });
+  }
+
+  selectTab(tab: string): void {
+    // If the webview isn't ready yet, queue it.
+    this.pendingTab = tab;
+    this.panel.webview.postMessage({ type: "selectTab", tab });
   }
 
   private dispose(): void {
@@ -124,16 +150,22 @@ export class DashboardPanel {
     </div>
   </header>
 
-  <section class="summary-cards" id="summary-cards"></section>
+  <nav class="top-tabs" role="tablist" aria-label="Dashboard tabs">
+    <button id="tab-usage" class="tab-btn" type="button" role="tab" aria-selected="true" aria-controls="tab-panel-usage" data-tab="usage">Usage</button>
+    <button id="tab-cursorbench" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-panel-cursorbench" data-tab="cursorbench">CursorBench</button>
+  </nav>
 
-  <section class="controls">
-    <div class="range-selector" id="range-selector" role="tablist">
-      <button data-range="1d" type="button">Last 24 hours</button>
-      <button data-range="7d" type="button">Last 7 days</button>
-      <button data-range="30d" type="button">Last 30 days</button>
-      <button data-range="billingCycle" type="button">Current Billing Cycle</button>
-    </div>
-  </section>
+  <div id="tab-panel-usage" class="tab-panel" role="tabpanel" aria-labelledby="tab-usage">
+    <section class="summary-cards" id="summary-cards"></section>
+
+    <section class="controls">
+      <div class="range-selector" id="range-selector" role="tablist" aria-label="Usage range">
+        <button data-range="1d" type="button">Last 24 hours</button>
+        <button data-range="7d" type="button">Last 7 days</button>
+        <button data-range="30d" type="button">Last 30 days</button>
+        <button data-range="billingCycle" type="button">Current Billing Cycle</button>
+      </div>
+    </section>
 
   <section class="chart-section collapsible-section" data-section="usage">
     <div class="chart-header">
@@ -248,6 +280,53 @@ export class DashboardPanel {
       <div class="pagination" id="pagination"></div>
     </div>
   </section>
+  </div>
+
+  <div id="tab-panel-cursorbench" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-cursorbench">
+    <section class="chart-section">
+      <div class="chart-header">
+        <div>
+          <h2>CursorBench</h2>
+          <p class="muted">Snapshot of cursor.com/cursorbench</p>
+        </div>
+        <div class="header-actions">
+          <label>X:
+            <select id="cursorbench-xmetric">
+              <option value="costPerTask">Cost / task</option>
+              <option value="tokensPerTask">Tokens / task</option>
+              <option value="stepsPerTask">Steps / task</option>
+            </select>
+          </label>
+          <span id="cursorbench-meta" class="muted small"></span>
+          <button id="cursorbench-open-source" type="button">Open Source</button>
+        </div>
+      </div>
+      <div class="chart-wrapper cursorbench-wrapper">
+        <canvas id="cursorbench-chart"></canvas>
+      </div>
+      <p id="cursorbench-note" class="muted small"></p>
+    </section>
+
+    <section class="model-breakdown-section">
+      <div class="events-header">
+        <h2>Models</h2>
+      </div>
+      <div class="table-scroll">
+        <table id="cursorbench-table">
+          <thead>
+            <tr>
+              <th data-sort="model" class="sortable">Model</th>
+              <th data-sort="score" class="sortable num">Score</th>
+              <th data-sort="costPerTask" class="sortable num">Cost / task</th>
+              <th data-sort="tokensPerTask" class="sortable num">Tokens / task</th>
+              <th data-sort="stepsPerTask" class="sortable num">Steps / task</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
 
   <div id="error-banner" class="error-banner hidden"></div>
 
