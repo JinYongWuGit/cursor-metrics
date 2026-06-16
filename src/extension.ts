@@ -293,46 +293,6 @@ function updateStatusBar(data: UsagePayload) {
 
   if (cursorBench && cursorBench.rows.length > 0) {
     md += `<hr>\n\n`;
-    md += `**CursorBench ${escapeHtml(cursorBench.version)}** <sub class="muted">(${escapeHtml(
-      cursorBench.capturedAt,
-    )})</sub>\n\n`;
-
-    // The tooltip image can't provide hover tooltips reliably, so include a compact
-    // table (like the website) to map points → models at a glance.
-    const baseModel = (name: string) =>
-      String(name || "").replace(/\s+(Max|Extra High|High|Medium|Low)\s*$/i, "").trim();
-    const palette = ["#9ec5fe", "#b6e3c1", "#f7c5a0", "#d3b9f2", "#f5b8c5", "#a7e0e0", "#f0d99b", "#c9d4f0"];
-    const bases = Array.from(new Set(cursorBench.rows.map((r) => baseModel(r.model)))).sort((a, b) => a.localeCompare(b));
-    const colorForBase = (b: string) => palette[Math.max(0, bases.indexOf(b)) % palette.length] ?? palette[0]!;
-
-    const top = cursorBench.rows
-      .slice()
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 8);
-    md += `<table width="460" cellspacing="0" cellpadding="0" style="font-size:11px; line-height:1.25;">`;
-    md += `<tr>`;
-    md += `<th align="left" width="34%" style="padding:2px 6px;">Model</th>`;
-    md += `<th align="right" width="12%" style="padding:2px 6px; white-space:nowrap;">Score</th>`;
-    md += `<th align="right" width="14%" style="padding:2px 6px; white-space:nowrap;">Cost</th>`;
-    md += `<th align="right" width="20%" style="padding:2px 6px; white-space:nowrap;">Tokens</th>`;
-    md += `<th align="right" width="20%" style="padding:2px 6px; white-space:nowrap;">Steps</th>`;
-    md += `</tr>`;
-    for (const r of top) {
-      const base = baseModel(r.model);
-      const color = colorForBase(base);
-      md += `<tr>`;
-      md += `<td align="left" style="padding:2px 6px;">` +
-        `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px;vertical-align:middle;"></span>` +
-        `<span style="display:inline-block;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;">${escapeHtml(r.model)}</span>` +
-        `</td>`;
-      md += `<td align="right" style="padding:2px 6px; white-space:nowrap;">${(Math.round(r.score * 1000) / 10).toFixed(1)}%</td>`;
-      md += `<td align="right" style="padding:2px 6px; white-space:nowrap;">$${r.costPerTask.toFixed(2)}</td>`;
-      md += `<td align="right" style="padding:2px 6px; white-space:nowrap;">${Math.round(r.tokensPerTask).toLocaleString()}</td>`;
-      md += `<td align="right" style="padding:2px 6px; white-space:nowrap;">${Math.round(r.stepsPerTask).toLocaleString()}</td>`;
-      md += `</tr>`;
-    }
-    md += `</table>\n\n`;
-
     md += `[Open Dashboard → CursorBench](command:${OPEN_DASHBOARD_COMMAND}?%5B%22cursorbench%22%5D) | `;
     md += `[Open Source](${cursorBench.sourceUrl})\n\n`;
   }
