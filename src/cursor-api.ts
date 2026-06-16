@@ -1,4 +1,4 @@
-import { closeSync, existsSync, fstatSync, openSync, readSync } from "fs";
+import { closeSync, existsSync, fstatSync, openSync, readSync, readdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -64,13 +64,15 @@ function normalizeModelName(model: string): string {
 type Logger = (msg: string) => void;
 
 let log: Logger = () => {};
+let dbPathOverride: string | null = null;
 
-export function configure(opts: { logger: Logger }) {
+export function configure(opts: { logger: Logger; dbPathOverride?: string | null }) {
   log = opts.logger;
+  dbPathOverride = opts.dbPathOverride ?? null;
 }
 
-function getDbPath(): string {
-  switch (process.platform) {
+function platformDefaultCursorDbPath(platform: NodeJS.Platform): string {
+  switch (platform) {
     case "darwin":
       return join(homedir(), "Library/Application Support/Cursor/User/globalStorage/state.vscdb");
     case "win32":
@@ -78,6 +80,58 @@ function getDbPath(): string {
     default:
       return join(homedir(), ".config/Cursor/User/globalStorage/state.vscdb");
   }
+}
+
+function isWsl(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.WSL_DISTRO_NAME || env.WSL_INTEROP || env.WSLENV);
+}
+
+function resolveWslDbPathByProbing(wslMountRoot = "/mnt/c"): string | null {
+  const usersDir = join(wslMountRoot, "Users");
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(usersDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+  } catch {
+    return null;
+  }
+
+  const skip = new Set(["Public", "Default", "Default User", "All Users"]);
+  for (const user of entries.filter((e) => !skip.has(e)).sort((a, b) => a.localeCompare(b))) {
+    const candidate = join(
+      usersDir,
+      user,
+      "AppData/Roaming/Cursor/User/globalStorage/state.vscdb",
+    );
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+export function resolveCursorStateDbPathForTest(opts: {
+  platform: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+  dbPathOverride?: string | null;
+  wslMountRoot?: string;
+}): string {
+  const env = opts.env ?? {};
+  const envOverride = env.CURSOR_USAGE_DB_PATH;
+  if (envOverride) return envOverride;
+  if (opts.dbPathOverride) return opts.dbPathOverride;
+  if (opts.platform === "linux" && isWsl(env)) {
+    const wslPath = resolveWslDbPathByProbing(opts.wslMountRoot);
+    if (wslPath) return wslPath;
+  }
+  return platformDefaultCursorDbPath(opts.platform);
+}
+
+function getDbPath(): string {
+  return resolveCursorStateDbPathForTest({
+    platform: process.platform,
+    env: process.env,
+    dbPathOverride,
+  });
 }
 
 type AuthInfo = { userId: string; sessionToken: string; email: string | null };

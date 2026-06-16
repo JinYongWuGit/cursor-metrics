@@ -61,6 +61,7 @@ function getConfig() {
     modelBreakdownSortOrder,
     excludeZeroTokenModels: cfg.get<boolean>("excludeZeroTokenModels", false),
     quotaAwareEventDisplay: cfg.get<boolean>("quotaAwareEventDisplay", true),
+    dbPath: cfg.get<string | null>("dbPath", null),
   };
 }
 
@@ -492,7 +493,7 @@ export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("Cursor Usage");
   log("Extension activating...");
 
-  configure({ logger: log });
+  configure({ logger: log, dbPathOverride: getConfig().dbPath });
 
   // Best-effort load; if it fails, we just omit CursorBench UI.
   loadCursorBenchSnapshot(context.extensionUri)
