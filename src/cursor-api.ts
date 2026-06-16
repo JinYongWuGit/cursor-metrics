@@ -119,9 +119,14 @@ export function resolveCursorStateDbPathForTest(opts: {
   const envOverride = env.CURSOR_USAGE_DB_PATH;
   if (envOverride) return envOverride;
   if (opts.dbPathOverride) return opts.dbPathOverride;
-  if (opts.platform === "linux" && isWsl(env)) {
-    const wslPath = resolveWslDbPathByProbing(opts.wslMountRoot);
-    if (wslPath) return wslPath;
+  if (opts.platform === "linux") {
+    const mountRoot = opts.wslMountRoot ?? "/mnt/c";
+    const usersDir = join(mountRoot, "Users");
+    const shouldProbe = isWsl(env) || existsSync(usersDir);
+    if (shouldProbe) {
+      const wslPath = resolveWslDbPathByProbing(mountRoot);
+      if (wslPath) return wslPath;
+    }
   }
   return platformDefaultCursorDbPath(opts.platform);
 }
@@ -413,6 +418,11 @@ async function getCursorToken(): Promise<AuthInfo | null> {
   if (cachedAuth.info && Date.now() - cachedAuth.ts < AUTH_CACHE_TTL) {
     log("Using cached auth token");
     return cachedAuth.info;
+  }
+
+  if (process.platform === "linux") {
+    log(`WSL detected: ${isWsl(process.env)}`);
+    log(`WSL /mnt/c/Users exists: ${existsSync("/mnt/c/Users")}`);
   }
 
   const dbPath = getDbPath();
