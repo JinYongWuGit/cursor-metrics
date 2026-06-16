@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.4] - 2026-06-16
+
+### Added
+- CursorBench snapshot in both the tooltip and the in-editor dashboard (chart + sortable table).
+- WSL support: auto-detect Cursor’s `state.vscdb` location on the Windows filesystem when running under WSL.
+
+### Changed
+- Tooltip footer actions now use compact inline links: `CursorUsage | Open Source | Refresh`, and `CursorBench | Open Source`.
+- Status bar usage display now shows a single on-demand spend value (spend/limit) instead of the prior segmented format.
+
 ## [0.6.3] - 2026-06-13
 
 ### Fixed
