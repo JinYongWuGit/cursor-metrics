@@ -293,12 +293,14 @@ function updateStatusBar(data: UsagePayload) {
 
   if (cursorBench && cursorBench.rows.length > 0) {
     md += `<hr>\n\n`;
-    md += `[Open Dashboard → CursorBench](command:${OPEN_DASHBOARD_COMMAND}?%5B%22cursorbench%22%5D) | `;
+    md += `[CursorBench](command:${OPEN_DASHBOARD_COMMAND}?%5B%22cursorbench%22%5D) | `;
     md += `[Open Source](${cursorBench.sourceUrl})\n\n`;
   }
 
   md += `<hr>\n\n`;
-  md += `[Open Dashboard](command:${OPEN_DASHBOARD_COMMAND}) | [Refresh](command:cursor-usage.refresh)`;
+  md += `[CursorUsage](command:${OPEN_DASHBOARD_COMMAND}?%5B%22usage%22%5D) | `;
+  md += `[Open Source](https://cursor.com/dashboard/usage) | `;
+  md += `[Refresh](command:cursor-usage.refresh)`;
 
   tooltip.appendMarkdown(md);
   statusBarItem.tooltip = tooltip;
