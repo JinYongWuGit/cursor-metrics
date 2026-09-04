@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## [0.6.6] - 2026-09-04
 
 ### Added
 - CursorBench dashboard fetches live data from cursor.com with a 24-hour cache and manual Refresh control.

@@ -20,3 +20,9 @@ full176.txt
 req171*.txt
 req176-body.json
 usage-summary-team.json
+.cursorbench-chunk.js
+.cursorbench-page.html
+.cursorbench-rsc-fetch.txt
+.cursorbench-rsc.txt
+docs/**
+test/**
