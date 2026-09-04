@@ -2,15 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
-## [0.6.4] - 2026-06-16
+## Unreleased
 
 ### Added
-- CursorBench snapshot in both the tooltip and the in-editor dashboard (chart + sortable table).
-- WSL support: auto-detect Cursor’s `state.vscdb` location on the Windows filesystem when running under WSL.
+- CursorBench dashboard fetches live data from cursor.com with a 24-hour cache and manual Refresh control.
+- Bundled `cursorbench-latest.json` fallback updated to CursorBench 3.2 (60 models).
 
 ### Changed
-- Tooltip footer actions now use compact inline links: `CursorUsage | Open Source | Refresh`, and `CursorBench | Open Source`.
-- Status bar usage display now shows a single on-demand spend value (spend/limit) instead of the prior segmented format.
+- CursorBench tab shows data provenance (live, cached, or bundled fallback) and capture date.
 
 ## [0.6.5] - 2026-06-16
 
@@ -22,6 +21,16 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - In WSL-like environments, probe `/mnt/c/Users/*/.../state.vscdb` when `/mnt/c/Users` exists even if WSL env vars are missing.
 - Add WSL detection/mount visibility logs to help diagnose DB path selection.
+
+## [0.6.4] - 2026-06-16
+
+### Added
+- CursorBench snapshot in both the tooltip and the in-editor dashboard (chart + sortable table).
+- WSL support: auto-detect Cursor’s `state.vscdb` location on the Windows filesystem when running under WSL.
+
+### Changed
+- Tooltip footer actions now use compact inline links: `CursorUsage | Open Source | Refresh`, and `CursorBench | Open Source`.
+- Status bar usage display now shows a single on-demand spend value (spend/limit) instead of the prior segmented format.
 
 ## [0.6.3] - 2026-06-13
 

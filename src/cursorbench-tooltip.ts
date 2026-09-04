@@ -43,8 +43,8 @@ export function cursorBenchMiniPlotDataUri(
 
   const xmin = Math.min(...xs, 0);
   const xmax = Math.max(...xs, 1);
-  const ymin = 0.30;
-  const ymax = 0.75;
+  const ymin = Math.max(0, Math.min(...ys, 1) - 0.05);
+  const ymax = Math.min(1, Math.max(...ys, 0) + 0.02);
 
   const xScale = (x: number) => {
     const t = (x - xmin) / (xmax - xmin || 1);
@@ -76,9 +76,14 @@ export function cursorBenchMiniPlotDataUri(
   const bases = Array.from(new Set(valid.map((r) => baseModel(r.model)))).sort((a, b) => a.localeCompare(b));
   const colorForBase = (b: string) => PALETTE[(Math.max(0, bases.indexOf(b))) % PALETTE.length]!;
 
-  // Pick a few labeled ticks that keep the plot readable.
-  const yTicks = [0.35, 0.45, 0.55, 0.65, 0.75];
-  const xTicks = [0, 2, 4, 8, 12, 16, 18].filter((v) => v >= xmin && v <= xmax);
+  const ySpan = ymax - ymin || 0.1;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1]
+    .map((t) => ymin + t * ySpan)
+    .filter((y) => y >= ymin - 0.001 && y <= ymax + 0.001);
+  const xTickCandidates = [0, 2, 4, 8, 12, 16, 18, Math.ceil(xmax)]
+    .filter((v, i, arr) => v >= xmin && v <= xmax && arr.indexOf(v) === i)
+    .sort((a, b) => a - b);
+  const xTicks = xTickCandidates.length > 0 ? xTickCandidates : [xmin, xmax];
 
   const gridLines = [
     ...yTicks.map((y) => {

@@ -7,6 +7,7 @@ export const OPEN_DASHBOARD_COMMAND = "cursor-usage.openDashboard";
 
 type RefreshFn = () => Promise<void>;
 type StateProvider = () => DashboardState | null;
+type CursorBenchRefreshFn = () => Promise<void>;
 
 function makeNonce(): string {
   return randomBytes(16).toString("base64url");
@@ -19,6 +20,7 @@ export class DashboardPanel {
     context: vscode.ExtensionContext,
     onRefresh: RefreshFn,
     getState: StateProvider,
+    onCursorBenchRefresh: CursorBenchRefreshFn,
   ): DashboardPanel {
     if (DashboardPanel.currentPanel) {
       DashboardPanel.currentPanel.panel.reveal(vscode.ViewColumn.Active);
@@ -36,7 +38,7 @@ export class DashboardPanel {
       },
     );
 
-    DashboardPanel.currentPanel = new DashboardPanel(panel, context, onRefresh, getState);
+    DashboardPanel.currentPanel = new DashboardPanel(panel, context, onRefresh, getState, onCursorBenchRefresh);
     return DashboardPanel.currentPanel;
   }
 
@@ -50,6 +52,7 @@ export class DashboardPanel {
     context: vscode.ExtensionContext,
     onRefresh: RefreshFn,
     getState: StateProvider,
+    onCursorBenchRefresh: CursorBenchRefreshFn,
   ) {
     this.panel = panel;
     this.panel.webview.html = this.renderHtml(panel.webview, context.extensionUri);
@@ -73,6 +76,13 @@ export class DashboardPanel {
             await onRefresh();
           } finally {
             this.postLoading(false);
+          }
+        } else if (msg.type === "refreshCursorBench") {
+          this.postCursorBenchRefreshing(true);
+          try {
+            await onCursorBenchRefresh();
+          } finally {
+            this.postCursorBenchRefreshing(false);
           }
         } else if (msg.type === "openExternal" && typeof (msg as any).url === "string") {
           const url = String((msg as any).url);
@@ -99,6 +109,10 @@ export class DashboardPanel {
   postCursorBench(snapshot: CursorBenchSnapshot): void {
     this.lastCursorBench = snapshot;
     this.panel.webview.postMessage({ type: "cursorbench", snapshot });
+  }
+
+  postCursorBenchRefreshing(on: boolean): void {
+    this.panel.webview.postMessage({ type: "cursorbenchRefreshing", on });
   }
 
   selectTab(tab: string): void {
@@ -287,7 +301,7 @@ export class DashboardPanel {
       <div class="chart-header">
         <div>
           <h2>CursorBench</h2>
-          <p class="muted">Snapshot of cursor.com/cursorbench</p>
+          <p class="muted">From cursor.com/cursorbench</p>
         </div>
         <div class="header-actions">
           <label>X:
@@ -298,6 +312,7 @@ export class DashboardPanel {
             </select>
           </label>
           <span id="cursorbench-meta" class="muted small"></span>
+          <button id="cursorbench-refresh" type="button">Refresh</button>
           <button id="cursorbench-open-source" type="button">Open Source</button>
         </div>
       </div>

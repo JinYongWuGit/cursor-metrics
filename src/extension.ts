@@ -11,7 +11,8 @@ import {
 } from "./cursor-api";
 import { DashboardPanel, OPEN_DASHBOARD_COMMAND } from "./dashboard-panel";
 import { buildDashboardState, type DashboardState } from "./dashboard-state";
-import { loadCursorBenchSnapshot, type CursorBenchSnapshot } from "./cursorbench-data";
+import type { CursorBenchSnapshot } from "./cursorbench-data";
+import { resolveCursorBenchSnapshot } from "./cursorbench-resolver";
 import {
   resolveConfiguredUsageDuration,
 } from "./duration-options";
@@ -41,6 +42,28 @@ let isFetching = false;
 let lastEvents: UsageEvent[] | null = null;
 let lastDailySpend: DailySpendRow[] | null = null;
 let cursorBench: CursorBenchSnapshot | null = null;
+let isCursorBenchFetching = false;
+
+async function refreshCursorBench(
+  context: vscode.ExtensionContext,
+  options: { force?: boolean } = {},
+): Promise<CursorBenchSnapshot | null> {
+  if (isCursorBenchFetching) return cursorBench;
+  isCursorBenchFetching = true;
+  try {
+    const snap = await resolveCursorBenchSnapshot(context, options);
+    cursorBench = snap;
+    if (lastData) updateStatusBar(lastData);
+    DashboardPanel.currentPanel?.postCursorBench(cursorBench);
+    return snap;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log(`CursorBench snapshot load failed: ${msg}`);
+    return cursorBench;
+  } finally {
+    isCursorBenchFetching = false;
+  }
+}
 
 const DEBOUNCE_MS = 30_000;
 
@@ -458,17 +481,9 @@ export function activate(context: vscode.ExtensionContext) {
   configure({ logger: log, dbPathOverride: getConfig().dbPath });
 
   // Best-effort load; if it fails, we just omit CursorBench UI.
-  loadCursorBenchSnapshot(context.extensionUri)
-    .then((snap) => {
-      cursorBench = snap;
-      if (lastData) updateStatusBar(lastData);
-      // If the dashboard is already open, refresh it with the new data.
-      DashboardPanel.currentPanel?.postCursorBench(cursorBench);
-    })
-    .catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      log(`CursorBench snapshot load failed: ${msg}`);
-    });
+  refreshCursorBench(context, { force: false }).catch(() => {
+    // Errors are logged inside refreshCursorBench.
+  });
 
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = OPEN_DASHBOARD_COMMAND;
@@ -479,12 +494,24 @@ export function activate(context: vscode.ExtensionContext) {
   const refreshCmd = vscode.commands.registerCommand("cursor-usage.refresh", updateUsage);
   const openDurationSettingCmd = vscode.commands.registerCommand(OPEN_DURATION_SETTING_COMMAND, openDurationSetting);
   // Support command-URI args: command:cursor-usage.openDashboard?["cursorbench"]
-  const openDashboardCmd = vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, (tab?: unknown) => {
-    DashboardPanel.createOrShow(context, updateUsage, getDashboardState);
+  const openDashboardCmd = vscode.commands.registerCommand(OPEN_DASHBOARD_COMMAND, async (tab?: unknown) => {
+    DashboardPanel.createOrShow(
+      context,
+      updateUsage,
+      getDashboardState,
+      () => refreshCursorBench(context, { force: true }),
+    );
     DashboardPanel.currentPanel?.postState(getDashboardState());
-    if (cursorBench) DashboardPanel.currentPanel?.postCursorBench(cursorBench);
+    const snap = await refreshCursorBench(context, { force: false });
+    if (snap) DashboardPanel.currentPanel?.postCursorBench(snap);
+    else if (cursorBench) DashboardPanel.currentPanel?.postCursorBench(cursorBench);
     if (typeof tab === "string" && tab) DashboardPanel.currentPanel?.selectTab(tab);
   });
+
+  const refreshCursorBenchCmd = vscode.commands.registerCommand(
+    "cursor-usage.refreshCursorBench",
+    () => refreshCursorBench(context, { force: true }),
+  );
 
   const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
     if (
@@ -514,7 +541,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(
-    statusBarItem, showDetailsCmd, refreshCmd, openDurationSettingCmd, openDashboardCmd,
+    statusBarItem, showDetailsCmd, refreshCmd, openDurationSettingCmd, openDashboardCmd, refreshCursorBenchCmd,
     configListener, docChangeListener, focusListener, themeListener,
     outputChannel,
   );

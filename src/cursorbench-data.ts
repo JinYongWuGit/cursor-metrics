@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 
+export type CursorBenchProvenance = "live" | "cache" | "bundled";
+
 export type CursorBenchRow = {
   model: string;
   score: number;
@@ -13,25 +15,14 @@ export type CursorBenchSnapshot = {
   capturedAt: string;
   sourceUrl: string;
   rows: CursorBenchRow[];
+  provenance: CursorBenchProvenance;
+  stale?: boolean;
 };
 
-export async function loadCursorBenchSnapshot(
-  extensionUri: vscode.Uri,
-): Promise<CursorBenchSnapshot> {
-  const uri = vscode.Uri.joinPath(extensionUri, "media", "cursorbench", "cursorbench-3.1.json");
-  const bytes = await vscode.workspace.fs.readFile(uri);
-  const text = Buffer.from(bytes).toString("utf8");
-  const parsed = JSON.parse(text) as CursorBenchSnapshot;
+export const CURSORBENCH_BUNDLED_FILE = "cursorbench-latest.json";
 
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("CursorBench snapshot is not an object");
-  }
-  if (!Array.isArray(parsed.rows)) {
-    throw new Error("CursorBench snapshot missing rows[]");
-  }
-
-  // Minimal runtime validation to avoid webview crashes.
-  parsed.rows = parsed.rows
+export function sanitizeCursorBenchRows(rows: CursorBenchRow[]): CursorBenchRow[] {
+  return rows
     .filter((r) =>
       r
       && typeof r.model === "string"
@@ -47,7 +38,28 @@ export async function loadCursorBenchSnapshot(
       tokensPerTask: r.tokensPerTask,
       stepsPerTask: r.stepsPerTask,
     }));
-
-  return parsed;
 }
 
+export async function loadBundledCursorBenchSnapshot(
+  extensionUri: vscode.Uri,
+): Promise<CursorBenchSnapshot> {
+  const uri = vscode.Uri.joinPath(extensionUri, "media", "cursorbench", CURSORBENCH_BUNDLED_FILE);
+  const bytes = await vscode.workspace.fs.readFile(uri);
+  const text = Buffer.from(bytes).toString("utf8");
+  const parsed = JSON.parse(text) as Omit<CursorBenchSnapshot, "provenance" | "stale">;
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("CursorBench snapshot is not an object");
+  }
+  if (!Array.isArray(parsed.rows)) {
+    throw new Error("CursorBench snapshot missing rows[]");
+  }
+
+  return {
+    version: parsed.version ?? "unknown",
+    capturedAt: parsed.capturedAt ?? "",
+    sourceUrl: parsed.sourceUrl ?? "https://cursor.com/cursorbench",
+    rows: sanitizeCursorBenchRows(parsed.rows),
+    provenance: "bundled",
+  };
+}

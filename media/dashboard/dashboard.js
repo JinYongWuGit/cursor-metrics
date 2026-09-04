@@ -27,6 +27,7 @@
     errorBanner: document.getElementById("error-banner"),
 
     cursorBenchMeta: document.getElementById("cursorbench-meta"),
+    cursorBenchRefresh: document.getElementById("cursorbench-refresh"),
     cursorBenchOpenSource: document.getElementById("cursorbench-open-source"),
     cursorBenchXMetric: document.getElementById("cursorbench-xmetric"),
     cursorBenchCanvas: document.getElementById("cursorbench-chart"),
@@ -782,6 +783,31 @@
     return Number.isFinite(n) ? n : 0;
   }
 
+  function formatCursorBenchDate(capturedAt) {
+    if (!capturedAt) return "";
+    const d = new Date(capturedAt);
+    if (!Number.isFinite(d.getTime())) return String(capturedAt).slice(0, 10);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function formatCursorBenchProvenance(snapshot) {
+    if (!snapshot) return "";
+    if (snapshot.provenance === "live") return "live";
+    if (snapshot.provenance === "bundled") return "bundled fallback";
+    if (snapshot.stale) return "cached (stale)";
+    return "cached";
+  }
+
+  function computeAxisRange(values, { pad = 0.05, floor = 0, ceiling = null } = {}) {
+    const nums = values.filter((v) => Number.isFinite(v));
+    if (nums.length === 0) return { min: floor, max: 1 };
+    const rawMin = Math.min(...nums);
+    const rawMax = Math.max(...nums);
+    const min = Math.max(floor, rawMin - pad);
+    const max = ceiling === null ? rawMax + pad : Math.min(ceiling, rawMax + pad);
+    return { min, max: max <= min ? min + pad : max };
+  }
+
   function cursorBenchBaseModel(name) {
     // Groups variants like "Opus 4.8 Max" / "Opus 4.8 High" together.
     // Keep this conservative; if a model has no tier suffix, it groups to itself.
@@ -904,6 +930,11 @@
     const muted = styles.getPropertyValue("--muted").trim() || "rgba(255,255,255,0.55)";
     const grid = styles.getPropertyValue("--border").trim() || "rgba(255,255,255,0.06)";
 
+    const xValues = rows.map((r) => r[xKey]);
+    const yValues = rows.map((r) => r.score);
+    const xRange = computeAxisRange(xValues, { pad: Math.max(...xValues, 1) * 0.05, floor: 0 });
+    const yRange = computeAxisRange(yValues, { pad: 0.03, floor: 0, ceiling: 1 });
+
     if (cursorBenchChart) {
       cursorBenchChart.destroy();
       cursorBenchChart = null;
@@ -950,6 +981,8 @@
         scales: {
           x: {
             type: "linear",
+            min: xRange.min,
+            max: xRange.max,
             beginAtZero: true,
             reverse: true,
             ticks: { color: muted, font: { size: 10 } },
@@ -959,8 +992,8 @@
           },
           y: {
             type: "linear",
-            min: 0.3,
-            max: 0.75,
+            min: yRange.min,
+            max: yRange.max,
             ticks: {
               color: muted,
               font: { size: 10 },
@@ -978,7 +1011,10 @@
   function renderCursorBench() {
     if (!cursorBench) return;
     if (ui.cursorBenchMeta) {
-      ui.cursorBenchMeta.textContent = "v" + (cursorBench.version || "") + " • " + (cursorBench.capturedAt || "");
+      const version = cursorBench.version || "";
+      const date = formatCursorBenchDate(cursorBench.capturedAt);
+      const provenance = formatCursorBenchProvenance(cursorBench);
+      ui.cursorBenchMeta.textContent = "v" + version + " • " + date + " • " + provenance;
     }
     if (ui.cursorBenchXMetric) ui.cursorBenchXMetric.value = local.cursorBenchXMetric;
     renderCursorBenchChart();
@@ -1072,7 +1108,11 @@
       ui.refreshBtn.textContent = msg.on ? "Refreshing…" : "Refresh";
     } else if (msg.type === "cursorbench") {
       cursorBench = msg.snapshot || null;
+      if (ui.cursorBenchRefresh) ui.cursorBenchRefresh.disabled = false;
       if (local.activeTab === "cursorbench") renderCursorBench();
+    } else if (msg.type === "cursorbenchRefreshing") {
+      if (ui.cursorBenchRefresh) ui.cursorBenchRefresh.disabled = Boolean(msg.on);
+      if (ui.cursorBenchMeta && msg.on) ui.cursorBenchMeta.textContent = "Refreshing…";
     } else if (msg.type === "selectTab") {
       setActiveTab(msg.tab);
     }
@@ -1080,6 +1120,14 @@
 
   if (ui.tabUsage) ui.tabUsage.addEventListener("click", () => setActiveTab("usage"));
   if (ui.tabCursorBench) ui.tabCursorBench.addEventListener("click", () => setActiveTab("cursorbench"));
+
+  if (ui.cursorBenchRefresh) {
+    ui.cursorBenchRefresh.addEventListener("click", () => {
+      ui.cursorBenchRefresh.disabled = true;
+      if (ui.cursorBenchMeta) ui.cursorBenchMeta.textContent = "Refreshing…";
+      vscode.postMessage({ type: "refreshCursorBench" });
+    });
+  }
 
   if (ui.cursorBenchOpenSource) {
     ui.cursorBenchOpenSource.addEventListener("click", () => {
